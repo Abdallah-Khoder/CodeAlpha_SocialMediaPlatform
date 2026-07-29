@@ -1,0 +1,187 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap");
+
+.signup-page {
+  --bg: #faf9fc;
+  --accent: #6c3ce9;
+  --accent-soft: rgba(108, 60, 233, 0.12);
+  --border: #e2ddec;
+  --text-main: #1c1530;
+  --text-muted: #8b8398;
+  --error: #d5335c;
+  --success: #1a9a6e;
+
+  position: relative;
+  height: 100vh;       /* fixed height instead of min-height */
+  overflow: hidden;    /* prevents the floral art from causing scroll */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  background: var(--bg);
+  font-family: "Inter", sans-serif;
+}
+
+.signup-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  padding: 36px 32px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(28, 21, 48, 0.06);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Sora", sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--text-main);
+  margin-bottom: 22px;
+}
+
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.signup-card h2 {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.tagline {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.form-group input {
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: "Inter", sans-serif;
+  color: var(--text-main);
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-group input::placeholder {
+  color: #b8b2c6;
+}
+
+.form-group input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.signup-button {
+  margin-top: 8px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-family: "Sora", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  background: var(--accent);
+  transition: background 0.15s ease;
+}
+
+.signup-button:hover:not(:disabled) {
+  background: #5a30cc;
+}
+
+.signup-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: var(--error);
+  font-size: 12.5px;
+}
+
+.success-message {
+  background-color: rgba(26, 154, 110, 0.1);
+  color: var(--success);
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.error-banner {
+  background-color: rgba(213, 51, 92, 0.1);
+  color: var(--error);
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* Decorative floral line-art */
+.floral {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  color: var(--accent);
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.floral-top {
+  top: -20px;
+  left: -20px;
+}
+
+.floral-bottom {
+  bottom: -20px;
+  right: -20px;
+  transform: scale(1.1);
+}
+
+@media (max-width: 480px) {
+  .signup-card {
+    padding: 26px 22px;
+  }
+
+  .floral {
+    width: 150px;
+    height: 150px;
+  }
+}
