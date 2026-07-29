@@ -1,0 +1,11 @@
+back/.venv/
+back/**/__pycache__/
+*.pyc
+back/db.sqlite3
+
+front/node_modules/
+front/dist/
+
+.env
+back/.env
+front/.env
