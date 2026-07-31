@@ -1,0 +1,17 @@
+.feed {
+  display: flex;
+  flex-direction: column;
+}
+
+.feed-status {
+  max-width: 560px;
+  margin: 24px auto;
+  text-align: center;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  color: #a79cc0;
+}
+
+.feed-status-error {
+  color: #d1435b;
+}

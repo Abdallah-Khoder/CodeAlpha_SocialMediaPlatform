@@ -17,3 +17,13 @@ body {
 #root {
   height: 100%;
 }
+
+/* Hide scrollbar visually across the whole site, scrolling stays functional */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Edge / old IE */
+}
+
+html::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, newer Edge */
+}

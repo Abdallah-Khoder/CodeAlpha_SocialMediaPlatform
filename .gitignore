@@ -2,6 +2,8 @@ back/.venv/
 back/**/__pycache__/
 *.pyc
 back/db.sqlite3
+back/media/
+
 
 front/node_modules/
 front/dist/
