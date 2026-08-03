@@ -199,3 +199,18 @@ class Save(models.Model):
 
     def __str__(self):
         return f"{self.user.username} saved Post {self.post.id}"
+
+
+class StoryView(models.Model):
+    # Tracks which users have viewed which stories
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="story_views")
+    story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name="views")
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "story"], name="unique_story_view")
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} viewed Story {self.story.id}"

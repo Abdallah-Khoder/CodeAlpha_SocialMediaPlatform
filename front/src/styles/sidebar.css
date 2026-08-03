@@ -1,0 +1,32 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  position: sticky;
+  top: 20px;
+  align-self: start;
+}
+
+.sidebar-item {
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #6b6178;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-item:hover {
+  background: #f0eafd;
+}
+
+.sidebar-item-active {
+  background: #6c3ce9;
+  color: #ffffff;
+}

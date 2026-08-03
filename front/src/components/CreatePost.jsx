@@ -106,7 +106,11 @@ function CreatePost({ onPostCreated }) {
     <div className="create-post-card">
       <div className="create-post-top">
         <Link to={`/profile/${user?.username}`} className="create-post-avatar">
-          {firstLetter}
+          {user?.profile_picture ? (
+            <img src={user.profile_picture} alt={user.username} />
+          ) : (
+            firstLetter
+          )}
         </Link>
 
         <textarea

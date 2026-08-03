@@ -90,7 +90,11 @@ function CommentsSection({ postId, onCommentAdded }) {
           {comments.map((comment) => (
             <div className="comment-item" key={comment.id}>
               <div className="comment-avatar">
-                {comment.username?.charAt(0)?.toUpperCase() || "?"}
+                {comment.profile_picture ? (
+                  <img src={comment.profile_picture} alt={comment.username} />
+                ) : (
+                  comment.username?.charAt(0)?.toUpperCase() || "?"
+                )}
               </div>
               <div className="comment-bubble">
                 <span className="comment-username">{comment.username}</span>

@@ -6,12 +6,40 @@
   background: #ffffff;
   border-bottom: 1px solid #e2ddec;
   font-family: "Sora", sans-serif;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  transition: transform 0.25s ease;
+}
+
+.navbar-hidden {
+  transform: translateY(-100%);
 }
 
 .navbar-brand {
   font-weight: 800;
   font-size: 18px;
   color: #4a4458;
+  text-decoration: none;
+}
+
+.navbar-home-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b6178;
+  margin-right: auto;
+  margin-left: 24px;
+  transition: color 0.15s ease;
+}
+
+.navbar-home-link svg {
+  width: 22px;
+  height: 22px;
+}
+
+.navbar-home-link:hover {
+  color: #6c3ce9;
 }
 
 .navbar-user {

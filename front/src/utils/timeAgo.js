@@ -32,3 +32,19 @@ export function timeAgo(dateString) {
   const diffYears = Math.floor(diffDays / 365);
   return `${diffYears} ${diffYears === 1 ? "year" : "years"} ago`;
 }
+
+// Converts an expiry ISO date string into a short "time left" label
+// Examples: "23h left", "45m left", "Expired"
+export function timeRemaining(expiresAtString) {
+  const now = new Date();
+  const expiresAt = new Date(expiresAtString);
+  const diffSeconds = Math.floor((expiresAt - now) / 1000);
+
+  if (diffSeconds <= 0) return "Expired";
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m left`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  return `${diffHours}h left`;
+}

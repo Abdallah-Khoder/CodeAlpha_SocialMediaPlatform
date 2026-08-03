@@ -1,0 +1,17 @@
+.home-layout {
+  display: grid;
+  grid-template-columns: 15% 70% 15%;
+  gap: 24px;
+  width: 100%;
+  padding: 20px 40px;
+  box-sizing: border-box;
+}
+
+.home-main {
+  min-width: 0;
+}
+
+/* Empty for now - reserved space for the right sidebar (Online Friends / Suggested for You) */
+.home-sidebar-right {
+  min-width: 0;
+}

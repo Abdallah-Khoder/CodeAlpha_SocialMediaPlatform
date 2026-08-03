@@ -185,3 +185,20 @@
     height: 150px;
   }
 }
+
+.auth-switch-text {
+  text-align: center;
+  font-size: 13px;
+  color: #6b6178;
+  margin-top: 16px;
+}
+
+.auth-switch-text a {
+  color: #6c3ce9;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-switch-text a:hover {
+  text-decoration: underline;
+}

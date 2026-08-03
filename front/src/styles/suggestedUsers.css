@@ -1,0 +1,92 @@
+.suggested-users {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  position: sticky;
+  top: 20px;
+  align-self: start;
+}
+
+.suggested-users-title {
+  padding: 10px 16px;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #6b6178;
+}
+
+.suggested-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.suggested-user-item:hover {
+  background: #f0eafd;
+}
+
+.suggested-user-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.suggested-user-avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.suggested-user-avatar-letter {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #6c3ce9;
+  color: #ffffff;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.suggested-user-name {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #6b6178;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggested-user-link:hover .suggested-user-name {
+  color: #6c3ce9;
+}
+
+.suggested-user-follow-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #6c3ce9;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.suggested-user-following {
+  color: #a79cc0;
+}

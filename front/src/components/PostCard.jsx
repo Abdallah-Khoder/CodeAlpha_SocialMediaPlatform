@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useFollow } from "../context/FollowContext";
 import { timeAgo } from "../utils/timeAgo";
 import MediaCarousel from "./MediaCarousel";
 import CommentsSection from "./CommentsSection";
+import ConfirmModal from "./ConfirmModal";
 import "../styles/postCard.css";
 
 const API_BASE = "http://127.0.0.1:8000";
 
-function PostCard({ post }) {
-  const { token } = useAuth();
+function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared }) {
+  const { token, user } = useAuth();
+  const { getFollowStatus, toggleFollow, isFlashing } = useFollow();
 
   const [liked, setLiked] = useState(post.is_liked);
   const [likesCount, setLikesCount] = useState(post.likes_count);
@@ -18,11 +21,19 @@ function PostCard({ post }) {
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
   const [showComments, setShowComments] = useState(false);
 
+  const [showMenu, setShowMenu] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content || "");
+  const [content, setContent] = useState(post.content || "");
+  const [saving, setSaving] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null); // null | "delete" | "unshare"
+
   const firstLetter = post.username?.charAt(0)?.toUpperCase() || "?";
   const media = post.media || [];
+  const isFollowingAuthor = getFollowStatus(post.username, post.is_following_author);
+  const isOwnPost = user?.username === post.username;
 
   const handleLike = async () => {
-    // Optimistic update: flip the UI immediately, before the server responds
     const previousLiked = liked;
     const previousCount = likesCount;
 
@@ -41,7 +52,6 @@ function PostCard({ post }) {
       setLiked(data.liked);
       setLikesCount(data.likes_count);
     } catch (err) {
-      // Revert to the previous state if the request failed
       setLiked(previousLiked);
       setLikesCount(previousCount);
     }
@@ -67,7 +77,6 @@ function PostCard({ post }) {
   };
 
   const handleShare = async () => {
-    // Shares aren't toggleable, each click creates a new share
     const previousCount = sharesCount;
     setSharesCount(sharesCount + 1);
 
@@ -81,24 +90,202 @@ function PostCard({ post }) {
 
       const data = await res.json();
       setSharesCount(data.shares_count);
+      if (onShared) onShared(post);
     } catch (err) {
       setSharesCount(previousCount);
     }
   };
 
+  const handleUnshareClick = () => {
+    if (localStorage.getItem("vibely_skip_removal_confirm") === "true") {
+      performUnshare();
+    } else {
+      setConfirmAction("unshare");
+    }
+  };
+
+  const performUnshare = async () => {
+    const previousCount = sharesCount;
+    setSharesCount(sharesCount - 1);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/posts/${post.id}/share/`, {
+        method: "DELETE",
+        headers: { Authorization: `Token ${token}` },
+      });
+
+      if (!res.ok) throw new Error(`Unshare request failed with status ${res.status}`);
+
+      const data = await res.json();
+      setSharesCount(data.shares_count);
+      if (onUnshared) onUnshared(post.id);
+    } catch (err) {
+      console.error("Unshare error:", err);
+      setSharesCount(previousCount);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setShowMenu(false);
+
+    if (localStorage.getItem("vibely_skip_removal_confirm") === "true") {
+      performDelete();
+    } else {
+      setConfirmAction("delete");
+    }
+  };
+
+  const performDelete = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/posts/${post.id}/`, {
+        method: "DELETE",
+        headers: { Authorization: `Token ${token}` },
+      });
+
+      if (res.ok || res.status === 204) {
+        if (onDeleted) onDeleted(post.id);
+      } else {
+        const errorData = await res.json().catch(() => null);
+        console.error("Delete post failed:", res.status, errorData);
+      }
+    } catch (err) {
+      console.error("Delete post error:", err);
+    }
+  };
+
+  const handleConfirmModalConfirm = (remember) => {
+    if (remember) {
+      localStorage.setItem("vibely_skip_removal_confirm", "true");
+    }
+
+    if (confirmAction === "delete") {
+      performDelete();
+    } else if (confirmAction === "unshare") {
+      performUnshare();
+    }
+
+    setConfirmAction(null);
+  };
+
+  const handleStartEdit = () => {
+    setShowMenu(false);
+    setEditContent(content);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditContent(content);
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/posts/${post.id}/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ content: editContent.trim() }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setContent(data.content);
+        setIsEditing(false);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="post-card">
+    <div className={`post-card ${isFlashing(post.username) ? "follow-success-flash" : ""}`}>
+      {post.shared_by && (
+        <Link to={`/profile/${post.shared_by.username}`} className="post-card-shared-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />
+          </svg>
+          <span>
+            <strong>{post.shared_by.username}</strong> shared this ·{" "}
+            {timeAgo(post.shared_by.shared_at)}
+          </span>
+        </Link>
+      )}
+
       <div className="post-card-header">
         <Link to={`/profile/${post.username}`} className="post-card-avatar">
-          {firstLetter}
+          {post.profile_picture ? (
+            <img src={post.profile_picture} alt={post.username} />
+          ) : (
+            firstLetter
+          )}
         </Link>
         <div className="post-card-header-text">
           <span className="post-card-username">{post.username}</span>
           <span className="post-card-time">{timeAgo(post.created_at)}</span>
         </div>
+
+        {!isOwnPost && !isFollowingAuthor && (
+          <button
+            type="button"
+            className="post-card-follow-btn"
+            onClick={() => toggleFollow(post.username, isFollowingAuthor)}
+          >
+            Follow
+          </button>
+        )}
+
+        {isOwnPost && (
+          <div className="post-card-menu-wrapper">
+            <button
+              type="button"
+              className="post-card-menu-btn"
+              onClick={() => setShowMenu((prev) => !prev)}
+              aria-label="Post options"
+            >
+              ⋮
+            </button>
+
+            {showMenu && (
+              <div className="post-card-menu-popover">
+                <button type="button" onClick={handleStartEdit}>
+                  Edit
+                </button>
+                <button type="button" className="post-card-menu-delete" onClick={handleDeleteClick}>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {post.content && <p className="post-card-content">{post.content}</p>}
+      {isEditing ? (
+        <div className="post-card-edit-box">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={3}
+          />
+          <div className="post-card-edit-actions">
+            <button type="button" onClick={handleCancelEdit} disabled={saving}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="post-card-edit-save"
+              onClick={handleSaveEdit}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        content && <p className="post-card-content">{content}</p>
+      )}
 
       {media.length > 0 && <MediaCarousel media={media} />}
 
@@ -141,12 +328,30 @@ function PostCard({ post }) {
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
           </svg>
         </button>
+
+        {isSharedView && (
+          <button type="button" className="post-card-unshare-btn" onClick={handleUnshareClick}>
+            Remove
+          </button>
+        )}
       </div>
 
       {showComments && (
         <CommentsSection
           postId={post.id}
           onCommentAdded={() => setCommentsCount((prev) => prev + 1)}
+        />
+      )}
+
+      {confirmAction && (
+        <ConfirmModal
+          message={
+            confirmAction === "delete"
+              ? "Delete this post? This cannot be undone."
+              : "Remove this post from your shares?"
+          }
+          onConfirm={handleConfirmModalConfirm}
+          onCancel={() => setConfirmAction(null)}
         />
       )}
     </div>

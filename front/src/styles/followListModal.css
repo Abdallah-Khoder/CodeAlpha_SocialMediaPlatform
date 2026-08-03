@@ -1,0 +1,134 @@
+.follow-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 37, 48, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.follow-modal {
+  background: #ffffff;
+  border-radius: 18px;
+  width: 380px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.follow-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #f0edf7;
+}
+
+.follow-modal-title {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #2b2530;
+}
+
+.follow-modal-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  color: #a79cc0;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.follow-modal-list {
+  overflow-y: auto;
+  padding: 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.follow-modal-list::-webkit-scrollbar {
+  display: none;
+}
+
+.follow-modal-status {
+  text-align: center;
+  font-family: "Inter", sans-serif;
+  font-size: 13px;
+  color: #a79cc0;
+  padding: 20px 0;
+}
+
+.follow-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.follow-modal-item:hover {
+  background: #f0eafd;
+}
+
+.follow-modal-user-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.follow-modal-user-link img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.follow-modal-avatar-letter {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #6c3ce9;
+  color: #ffffff;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.follow-modal-user-link span {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #2b2530;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.follow-modal-follow-btn {
+  flex-shrink: 0;
+  border: 1px solid #6c3ce9;
+  background: transparent;
+  color: #6c3ce9;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.follow-modal-following {
+  background: #6c3ce9;
+  color: #ffffff;
+}

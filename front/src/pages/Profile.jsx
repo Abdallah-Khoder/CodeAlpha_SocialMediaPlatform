@@ -1,14 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useFollow } from "../context/FollowContext";
+import Navbar from "../components/Navbar";
 import PostCard from "../components/PostCard";
+import FollowListModal from "../components/FollowListModal";
 import "../styles/profile.css";
 
 const API_BASE = "http://127.0.0.1:8000";
 
 function Profile() {
   const { username } = useParams();
-  const { token } = useAuth();
+  const { token, user, fetchCurrentUser } = useAuth();
+  const { getFollowStatus, toggleFollow, isFlashing } = useFollow();
 
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -18,6 +22,13 @@ function Profile() {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingShares, setLoadingShares] = useState(false);
   const [sharesLoaded, setSharesLoaded] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [followModalType, setFollowModalType] = useState(null); // null | "followers" | "following"
+
+  const fileInputRef = useRef(null);
+
+  // Whether the page being viewed belongs to the currently logged-in user
+  const isOwnProfile = user?.username === username;
 
   // Load profile info + this user's posts as soon as the page opens
   useEffect(() => {
@@ -49,13 +60,11 @@ function Profile() {
 
     loadProfile();
     loadPosts();
-    // Reset tab state whenever we navigate to a different user's profile
     setActiveTab("posts");
     setSharesLoaded(false);
     setShares([]);
   }, [username, token]);
 
-  // Shares are only fetched the first time the "Shares" tab is opened
   const handleTabClick = async (tab) => {
     setActiveTab(tab);
 
@@ -74,23 +83,139 @@ function Profile() {
     }
   };
 
+  // Opens the hidden file picker (only reachable when viewing your own profile)
+  const handleAvatarClick = () => {
+    if (isOwnProfile) fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("profile_picture", file);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/profile/update-picture/`, {
+        method: "PATCH",
+        headers: { Authorization: `Token ${token}` },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update this page's local state so it shows up instantly here
+        setProfile((prev) => ({ ...prev, profile_picture: data.profile_picture }));
+
+        // Also refresh the global AuthContext user, so the picture updates
+        // immediately everywhere else too (CreatePost composer, Navbar, etc.)
+        if (fetchCurrentUser) fetchCurrentUser();
+      }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleFollowToggle = async () => {
+    const currentValue = getFollowStatus(username, profile.is_following);
+    const previousCount = profile.followers_count;
+
+    // Optimistically adjust the follower count shown on this page
+    setProfile((prev) => ({
+      ...prev,
+      followers_count: currentValue ? previousCount - 1 : previousCount + 1,
+    }));
+
+    await toggleFollow(username, currentValue);
+  };
+
+  const handlePostShared = (sharedPost) => {
+    if (!isOwnProfile) return;
+
+    setProfile((prev) => ({ ...prev, shares_count: prev.shares_count + 1 }));
+
+    // Only add it to the visible Shares list if it's not already there
+    // (re-sharing the same post again shouldn't create a duplicate row)
+    setShares((prev) => {
+      const alreadyThere = prev.some((p) => p.id === sharedPost.id);
+      return alreadyThere ? prev : [sharedPost, ...prev];
+    });
+  };
+
   if (loadingProfile) {
-    return <div className="profile-status">Loading profile...</div>;
+    return (
+      <div>
+        <Navbar />
+        <div className="profile-status">Loading profile...</div>
+      </div>
+    );
   }
 
   if (!profile) {
-    return <div className="profile-status">Profile not found.</div>;
+    return (
+      <div>
+        <Navbar />
+        <div className="profile-status">Profile not found.</div>
+      </div>
+    );
   }
 
   const firstLetter = profile.username?.charAt(0)?.toUpperCase() || "?";
   const fullName = `${profile.first_name} ${profile.last_name}`.trim();
 
   return (
-    <div className="profile-page">
-      <div className="profile-header">
-        <div className="profile-avatar-large">{firstLetter}</div>
+    <div>
+      <Navbar />
+      <div className="profile-page">
+      <div className={`profile-header ${isFlashing(username) ? "follow-success-flash" : ""}`}>
+        <div
+          className={`profile-avatar-large ${isOwnProfile ? "profile-avatar-editable" : ""}`}
+          onClick={handleAvatarClick}
+        >
+          {profile.profile_picture ? (
+            <img src={profile.profile_picture} alt={profile.username} />
+          ) : (
+            firstLetter
+          )}
+
+          {isOwnProfile && (
+            <div className="profile-avatar-overlay">
+              {uploading ? "..." : "Change"}
+            </div>
+          )}
+        </div>
+
+        {isOwnProfile && (
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
+        )}
+
         <div className="profile-header-text">
-          <h2 className="profile-username">{profile.username}</h2>
+          <div className="profile-name-row">
+            <h2 className="profile-username">{profile.username}</h2>
+
+            {!isOwnProfile && (
+              <button
+                type="button"
+                className={`profile-follow-btn ${
+                  getFollowStatus(username, profile.is_following)
+                    ? "profile-follow-btn-active"
+                    : ""
+                }`}
+                onClick={handleFollowToggle}
+              >
+                {getFollowStatus(username, profile.is_following) ? "Unfollow" : "Follow"}
+              </button>
+            )}
+          </div>
+
           {fullName && <p className="profile-fullname">{fullName}</p>}
           {profile.bio && <p className="profile-bio">{profile.bio}</p>}
 
@@ -98,12 +223,45 @@ function Profile() {
             <span>
               <strong>{profile.posts_count}</strong> Posts
             </span>
+            <span
+              className="profile-stat-clickable"
+              onClick={() => setFollowModalType("followers")}
+            >
+              <strong>{profile.followers_count}</strong> Followers
+            </span>
+            <span
+              className="profile-stat-clickable"
+              onClick={() => setFollowModalType("following")}
+            >
+              <strong>{profile.following_count}</strong> Following
+            </span>
             <span>
               <strong>{profile.shares_count}</strong> Shares
             </span>
           </div>
         </div>
       </div>
+
+      {followModalType && (
+        <FollowListModal
+          username={username}
+          type={followModalType}
+          onClose={() => setFollowModalType(null)}
+          onFollowChange={(targetUsername, nowFollowing) => {
+            // Toggling follow on ANYONE (whether you're viewing their
+            // followers list or their following list) always changes
+            // YOUR OWN following_count - not the list type being shown
+            if (isOwnProfile) {
+              setProfile((prev) => ({
+                ...prev,
+                following_count: nowFollowing
+                  ? prev.following_count + 1
+                  : prev.following_count - 1,
+              }));
+            }
+          }}
+        />
+      )}
 
       <div className="profile-tabs">
         <button
@@ -130,7 +288,15 @@ function Profile() {
               <div className="profile-status">No posts yet.</div>
             )}
             {posts.map((post) => (
-              <PostCard post={post} key={post.id} />
+              <PostCard
+                post={post}
+                key={post.id}
+                onShared={handlePostShared}
+                onDeleted={(id) => {
+                  setPosts((prev) => prev.filter((p) => p.id !== id));
+                  setProfile((prev) => ({ ...prev, posts_count: prev.posts_count - 1 }));
+                }}
+              />
             ))}
           </>
         )}
@@ -142,10 +308,24 @@ function Profile() {
               <div className="profile-status">No shared posts yet.</div>
             )}
             {shares.map((post) => (
-              <PostCard post={post} key={post.id} />
+              <PostCard
+                post={post}
+                key={post.id}
+                isSharedView={isOwnProfile}
+                onShared={handlePostShared}
+                onUnshared={(id) => {
+                  setShares((prev) => prev.filter((p) => p.id !== id));
+                  setProfile((prev) => ({ ...prev, shares_count: prev.shares_count - 1 }));
+                }}
+                onDeleted={(id) => {
+                  setShares((prev) => prev.filter((p) => p.id !== id));
+                  setProfile((prev) => ({ ...prev, shares_count: prev.shares_count - 1 }));
+                }}
+              />
             ))}
           </>
         )}
+      </div>
       </div>
     </div>
   );
