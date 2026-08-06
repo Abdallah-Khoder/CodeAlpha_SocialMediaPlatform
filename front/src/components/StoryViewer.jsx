@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { timeRemaining } from "../utils/timeAgo";
 import "../styles/storyViewer.css";
@@ -150,11 +151,23 @@ function StoryViewer({ groups, startGroupIndex, onClose }) {
           <button type="button" className="story-nav-zone story-nav-right" onClick={goNext} aria-label="Next" />
         </div>
 
-        {isOwnStory && (
-          <button type="button" className="story-viewer-seen-by" onClick={handleLoadViewers}>
-            Seen by
-          </button>
-        )}
+        <div className="story-viewer-bottom-actions">
+          {isOwnStory && (
+            <button type="button" className="story-viewer-seen-by" onClick={handleLoadViewers}>
+              Seen by
+            </button>
+          )}
+
+          {currentStory.related_post_id && (
+            <Link
+              to={`/post/${currentStory.related_post_id}`}
+              className="story-viewer-see-post"
+              onClick={onClose}
+            >
+              See post
+            </Link>
+          )}
+        </div>
 
         {showViewers && (
           <div className="story-viewers-panel" onClick={(e) => e.stopPropagation()}>

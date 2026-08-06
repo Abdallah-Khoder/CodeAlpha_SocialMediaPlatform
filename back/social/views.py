@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Max
 
 from rest_framework import status , generics
 from rest_framework.authtoken.models import Token
@@ -12,8 +13,17 @@ from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 
 
-from .serializers import RegisterSerializer , PostSerializer , CommentSerializer , ProfileSerializer , SuggestedUserSerializer , StoryItemSerializer
-from .models import Post, PostMedia, Profile ,Follow , Like, Save, Comment, Share , Story, StoryMedia, StoryView
+from .serializers import RegisterSerializer , PostSerializer , CommentSerializer , ProfileSerializer , SuggestedUserSerializer , StoryItemSerializer , ConversationSerializer, MessageSerializer
+from .models import Post, PostMedia, Profile ,Follow , Like, Save, Comment, Share , Story, StoryMedia, StoryView , Conversation, Message 
+
+
+import io
+from PIL import Image, ImageDraw, ImageFont
+from django.core.files.base import ContentFile
+
+
+
+
 
 class RegisterView(APIView):
 
@@ -227,7 +237,8 @@ class UserSharesView(generics.ListAPIView):
 
     def get_queryset(self):
         return Post.objects.filter(
-            shares__user__username=self.kwargs["username"]
+            shares__user__username=self.kwargs["username"],
+            shares__from_story=False
         ).distinct().order_by("-shares__created_at")
 
 class MySavedPostsView(generics.ListAPIView):
@@ -266,7 +277,8 @@ class MySharedPostsView(generics.ListAPIView):
 
     def get_queryset(self):
         return Post.objects.filter(
-            shares__user=self.request.user
+            shares__user=self.request.user , 
+            shares__from_story=False,
         ).distinct().order_by("-created_at")
 
 
@@ -413,7 +425,6 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 
-
 class StoriesView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -424,7 +435,6 @@ class StoriesView(APIView):
         )
         user_ids = list(following_ids) + [request.user.id]
 
-        # Only stories that haven't expired yet
         active_stories = Story.objects.filter(
             user_id__in=user_ids, expires_at__gt=now
         ).select_related("user", "user__profile").order_by("created_at")
@@ -456,7 +466,6 @@ class StoriesView(APIView):
             entry["has_unviewed"] = any(not s["is_viewed"] for s in entry["stories"])
             result.append(entry)
 
-        # Show your own story group first, if you have one
         result.sort(key=lambda e: 0 if e["username"] == request.user.username else 1)
 
         return Response(result)
@@ -485,6 +494,7 @@ class StoriesView(APIView):
         serializer = StoryItemSerializer(story, context={"request": request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+
 class StoryViewMarkView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -501,7 +511,6 @@ class StoryViewersView(generics.ListAPIView):
     def get_queryset(self):
         story = get_object_or_404(Story, id=self.kwargs["story_id"])
 
-        # Only the story's owner can see who viewed it
         if story.user_id != self.request.user.id:
             return User.objects.none()
 
@@ -511,7 +520,239 @@ class StoryViewersView(generics.ListAPIView):
             .values_list("user_id", flat=True)
         )
 
-        # Preserve the "most recent view first" ordering
         users = list(User.objects.filter(id__in=viewer_ids))
         users.sort(key=lambda u: viewer_ids.index(u.id))
         return users
+
+
+class ShareToStoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+
+        # Use the specific media item the user was viewing (if provided),
+        # otherwise fall back to the first media item on the post
+        media_id = request.data.get("media_id")
+        if media_id:
+            selected_media = post.media.filter(id=media_id).first()
+        else:
+            selected_media = post.media.first()
+
+        story = Story.objects.create(user=request.user, related_post=post)
+
+        # Sharing to your story also counts toward the share number,
+        # but is flagged so it doesn't show up in the "Shares" list/tab
+        Share.objects.create(user=request.user, post=post, from_story=True)
+
+        if selected_media:
+            selected_media.file.open("rb")
+            file_content = selected_media.file.read()
+            selected_media.file.close()
+
+            file_name = selected_media.file.name.split("/")[-1]
+            story_media = StoryMedia(story=story, media_type=selected_media.media_type)
+            story_media.file.save(file_name, ContentFile(file_content), save=True)
+        else:
+            image = self._generate_text_card(post.content)
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+
+            story_media = StoryMedia(story=story, media_type="image")
+            story_media.file.save(
+                f"story_{story.id}.png", ContentFile(buffer.getvalue()), save=True
+            )
+
+        serializer = StoryItemSerializer(story, context={"request": request})
+        response_data = serializer.data
+        response_data["shares_count"] = post.shares.count()
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    def _generate_text_card(self, text):
+        # Vibely-purple background with the post's text centered on it
+        width, height = 1080, 1920
+        background_color = (108, 60, 233)  # matches Vibely's #6c3ce9 accent
+
+        image = Image.new("RGB", (width, height), color=background_color)
+        draw = ImageDraw.Draw(image)
+
+        try:
+            font = ImageFont.truetype("arial.ttf", 60)
+        except IOError:
+            font = ImageFont.load_default()
+
+        # Simple word-wrap so long posts don't overflow the card
+        max_chars_per_line = 22
+        words = (text or "").split()
+        lines = []
+        current_line = ""
+        for word in words:
+            test_line = f"{current_line} {word}".strip()
+            if len(test_line) <= max_chars_per_line:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+
+        line_height = 80
+        total_text_height = len(lines) * line_height
+        start_y = (height - total_text_height) // 2
+
+        for i, line in enumerate(lines):
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_width = bbox[2] - bbox[0]
+            x = (width - line_width) // 2
+            y = start_y + i * line_height
+            draw.text((x, y), line, font=font, fill=(255, 255, 255))
+
+        return image
+
+
+class ConversationListView(generics.ListAPIView):
+    serializer_class = ConversationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            Conversation.objects.filter(participants=self.request.user)
+            .annotate(last_message_at=Max("messages__created_at"))
+            .order_by("-last_message_at")
+        )
+
+
+class ConversationStartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        username = request.data.get("username")
+        target_user = get_object_or_404(User, username=username)
+
+        if target_user == request.user:
+            return Response(
+                {"error": "You cannot message yourself."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Look for an existing 1-on-1 conversation between these two users
+        candidates = Conversation.objects.filter(participants=request.user).filter(
+            participants=target_user
+        )
+        conversation = None
+        for c in candidates:
+            if c.participants.count() == 2:
+                conversation = c
+                break
+
+        if not conversation:
+            conversation = Conversation.objects.create()
+            conversation.participants.add(request.user, target_user)
+
+        return Response({"conversation_id": conversation.id})
+
+
+class MessagePagination(PageNumberPagination):
+    page_size = 30
+
+
+class MessageListCreateView(generics.ListCreateAPIView):
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = MessagePagination
+
+    def get_queryset(self):
+        conversation = get_object_or_404(
+            Conversation, id=self.kwargs["conversation_id"], participants=self.request.user
+        )
+        # Mark any messages from the other person as read now that we're opening this
+        conversation.messages.filter(is_read=False).exclude(sender=self.request.user).update(
+            is_read=True
+        )
+        return conversation.messages.all()
+
+    def create(self, request, *args, **kwargs):
+        conversation = get_object_or_404(
+            Conversation, id=self.kwargs["conversation_id"], participants=request.user
+        )
+
+        text = request.data.get("text", "").strip()
+        image = request.FILES.get("image")
+        shared_post_id = request.data.get("shared_post_id")
+        shared_post = Post.objects.filter(id=shared_post_id).first() if shared_post_id else None
+
+        if not text and not image and not shared_post:
+            return Response(
+                {"error": "A message needs text, an image, or a shared post."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        message = Message.objects.create(
+            conversation=conversation,
+            sender=request.user,
+            text=text,
+            image=image,
+            shared_post=shared_post,
+        )
+
+        serializer = self.get_serializer(message)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class MessageDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_owned_message(self, pk, user):
+        message = get_object_or_404(Message, id=pk)
+        if message.sender != user:
+            return None
+        return message
+
+    def patch(self, request, pk):
+        message = self.get_owned_message(pk, request.user)
+        if message is None:
+            return Response(
+                {"error": "You can only edit your own messages."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if message.is_deleted:
+            return Response(
+                {"error": "You can't edit a deleted message."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Editing is only supported for plain text messages
+        if message.image or message.shared_post_id:
+            return Response(
+                {"error": "Only text messages can be edited."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        text = request.data.get("text", "").strip()
+        if not text:
+            return Response(
+                {"error": "Message text cannot be empty."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        message.text = text
+        message.is_edited = True
+        message.save()
+
+        serializer = MessageSerializer(message, context={"request": request})
+        return Response(serializer.data)
+
+    def delete(self, request, pk):
+        message = self.get_owned_message(pk, request.user)
+        if message is None:
+            return Response(
+                {"error": "You can only delete your own messages."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Soft delete: keep the row, hide the content, flag it
+        message.is_deleted = True
+        message.save()
+
+        serializer = MessageSerializer(message, context={"request": request})
+        return Response(serializer.data)

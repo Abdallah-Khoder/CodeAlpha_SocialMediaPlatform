@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useFollow } from "../context/FollowContext";
+import { useStories } from "../context/StoriesContext";
 import { timeAgo } from "../utils/timeAgo";
 import MediaCarousel from "./MediaCarousel";
 import CommentsSection from "./CommentsSection";
@@ -13,6 +14,7 @@ const API_BASE = "http://127.0.0.1:8000";
 function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared }) {
   const { token, user } = useAuth();
   const { getFollowStatus, toggleFollow, isFlashing } = useFollow();
+  const { notifyStoriesChanged } = useStories();
 
   const [liked, setLiked] = useState(post.is_liked);
   const [likesCount, setLikesCount] = useState(post.likes_count);
@@ -27,6 +29,10 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
   const [content, setContent] = useState(post.content || "");
   const [saving, setSaving] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null); // null | "delete" | "unshare"
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [sharingToStory, setSharingToStory] = useState(false);
+  const [shareToast, setShareToast] = useState(null); // { type, message }
+  const [visibleMediaIndex, setVisibleMediaIndex] = useState(0);
 
   const firstLetter = post.username?.charAt(0)?.toUpperCase() || "?";
   const media = post.media || [];
@@ -77,6 +83,7 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
   };
 
   const handleShare = async () => {
+    setShowShareMenu(false);
     const previousCount = sharesCount;
     setSharesCount(sharesCount + 1);
 
@@ -93,6 +100,39 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
       if (onShared) onShared(post);
     } catch (err) {
       setSharesCount(previousCount);
+    }
+  };
+
+  const handleShareToStory = async () => {
+    setShowShareMenu(false);
+    setSharingToStory(true);
+
+    // Send the id of whichever media the user is currently looking at
+    // in the carousel, so that specific image/video gets shared
+    const currentMedia = media[visibleMediaIndex];
+
+    try {
+      const res = await fetch(`${API_BASE}/api/posts/${post.id}/share-to-story/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ media_id: currentMedia?.id || null }),
+      });
+
+      if (!res.ok) throw new Error("Share to story failed");
+
+      const data = await res.json();
+      setSharesCount(data.shares_count);
+
+      setShareToast({ type: "success", message: "Added to your story!" });
+      notifyStoriesChanged();
+    } catch (err) {
+      setShareToast({ type: "error", message: "Could not add to your story." });
+    } finally {
+      setSharingToStory(false);
+      setTimeout(() => setShareToast(null), 3000);
     }
   };
 
@@ -224,7 +264,9 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
         </Link>
         <div className="post-card-header-text">
           <span className="post-card-username">{post.username}</span>
-          <span className="post-card-time">{timeAgo(post.created_at)}</span>
+          <Link to={`/post/${post.id}`} className="post-card-time">
+            {timeAgo(post.created_at)}
+          </Link>
         </div>
 
         {!isOwnPost && !isFollowingAuthor && (
@@ -287,7 +329,9 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
         content && <p className="post-card-content">{content}</p>
       )}
 
-      {media.length > 0 && <MediaCarousel media={media} />}
+      {media.length > 0 && (
+        <MediaCarousel media={media} onIndexChange={setVisibleMediaIndex} />
+      )}
 
       <div className="post-card-actions">
         <button
@@ -312,12 +356,35 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
           <span>{commentsCount}</span>
         </button>
 
-        <button type="button" className="action-btn" onClick={handleShare}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />
-          </svg>
-          <span>{sharesCount}</span>
-        </button>
+        <div className="post-card-share-wrapper">
+          <button
+            type="button"
+            className="action-btn"
+            onClick={() => setShowShareMenu((prev) => !prev)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />
+            </svg>
+            <span>{sharesCount}</span>
+          </button>
+
+          {showShareMenu && (
+            <div className="post-card-share-popover">
+              <button type="button" onClick={handleShare}>
+                Share
+              </button>
+              <button type="button" onClick={handleShareToStory} disabled={sharingToStory}>
+                {sharingToStory ? "Adding..." : "Add To Story"}
+              </button>
+            </div>
+          )}
+
+          {shareToast && (
+            <div className={`post-card-share-toast post-card-share-toast-${shareToast.type}`}>
+              {shareToast.message}
+            </div>
+          )}
+        </div>
 
         <button
           type="button"

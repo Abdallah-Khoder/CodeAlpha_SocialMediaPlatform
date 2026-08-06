@@ -227,6 +227,11 @@
 .post-card-time {
   font-size: 12px;
   color: #a79cc0;
+  text-decoration: none;
+}
+
+.post-card-time:hover {
+  text-decoration: underline;
 }
 
 .post-card-content {
@@ -343,6 +348,67 @@
 
 .action-btn-save {
   margin-left: auto;
+}
+
+.post-card-share-wrapper {
+  position: relative;
+}
+
+.post-card-share-popover {
+  position: absolute;
+  bottom: 38px;
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #e8e4f2;
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  z-index: 10;
+}
+
+.post-card-share-popover button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  font-family: "Inter", sans-serif;
+  font-size: 13px;
+  color: #2b2530;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.post-card-share-popover button:hover {
+  background: #f0eafd;
+}
+
+.post-card-share-popover button:disabled {
+  color: #a79cc0;
+  cursor: not-allowed;
+}
+
+.post-card-share-toast {
+  position: absolute;
+  bottom: 38px;
+  left: 0;
+  white-space: nowrap;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: "Inter", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  z-index: 10;
+}
+
+.post-card-share-toast-success {
+  background: #3fb96b;
+}
+
+.post-card-share-toast-error {
+  background: #d1435b;
 }
 
 /* Comments section */

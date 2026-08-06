@@ -26,6 +26,12 @@ from .views import (
     StoriesView, 
     StoryViewMarkView,
     StoryViewersView,
+    ShareToStoryView,
+    ConversationListView, 
+    ConversationStartView, 
+    MessageListCreateView,
+    MessageDetailView,
+
 )
 
 urlpatterns = [
@@ -44,7 +50,8 @@ urlpatterns = [
     path("posts/<int:post_id>/like/", LikeToggleView.as_view(), name="post-like"),
     path("posts/<int:post_id>/save/", SaveToggleView.as_view(), name="post-save"),
     path("posts/<int:post_id>/comments/", CommentListCreateView.as_view(), name="post-comments"),
-    path("posts/<int:post_id>/share/", ShareView.as_view(), name="post-share"),    path("profile/<str:username>/", UserProfileView.as_view(), name="user-profile"),
+    path("posts/<int:post_id>/share/", ShareView.as_view(), name="post-share"),
+    path("profile/<str:username>/", UserProfileView.as_view(), name="user-profile"),
     path("profile/<str:username>/posts/", UserPostsView.as_view(), name="user-posts"),
     path("profile/<str:username>/shares/", UserSharesView.as_view(), name="user-shares"),
     path("profile/<str:username>/followers/", FollowersListView.as_view(), name="user-followers"),
@@ -53,7 +60,10 @@ urlpatterns = [
     path("stories/", StoriesView.as_view(), name="stories"),
     path("stories/<int:story_id>/view/", StoryViewMarkView.as_view(), name="story-view"),
     path("stories/<int:story_id>/viewers/", StoryViewersView.as_view(), name="story-viewers"),
-
-
+    path("posts/<int:post_id>/share-to-story/", ShareToStoryView.as_view(), name="share-to-story"),
+    path("conversations/", ConversationListView.as_view(), name="conversations"),
+    path("conversations/start/", ConversationStartView.as_view(), name="conversation-start"),
+    path("conversations/<int:conversation_id>/messages/", MessageListCreateView.as_view(), name="conversation-messages"),
+    path("messages/<int:pk>/", MessageDetailView.as_view(), name="message-detail"),
 
 ]

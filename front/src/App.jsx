@@ -1,18 +1,22 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { FollowProvider } from "./context/FollowContext";
+import { StoriesProvider } from "./context/StoriesContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import PostDetail from "./pages/PostDetail";
+import Messages from "./pages/Messages";
 
 function App() {
   return (
     <AuthProvider>
       <FollowProvider>
-        <BrowserRouter>
+        <StoriesProvider>
+          <BrowserRouter>
           <Routes>
             <Route
               path="/signup"
@@ -50,6 +54,33 @@ function App() {
             />
 
             <Route
+              path="/post/:postId"
+              element={
+                <ProtectedRoute>
+                  <PostDetail />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/messages/:conversationId"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/"
               element={
                 <PublicRoute>
@@ -59,6 +90,7 @@ function App() {
             />
           </Routes>
         </BrowserRouter>
+        </StoriesProvider>
       </FollowProvider>
     </AuthProvider>
   );

@@ -22,14 +22,12 @@
   color: #4a4458;
   text-decoration: none;
 }
-
 .navbar-home-link {
   display: flex;
   align-items: center;
   justify-content: center;
   color: #6b6178;
-  margin-right: auto;
-  margin-left: 24px;
+  /* margin: 0 auto;   بيصير بالنص تماماً */
   transition: color 0.15s ease;
 }
 
@@ -70,4 +68,10 @@
 .navbar-logout:hover {
   background: #6c3ce9;
   color: #ffffff;
+}
+
+.navbar-icons {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }

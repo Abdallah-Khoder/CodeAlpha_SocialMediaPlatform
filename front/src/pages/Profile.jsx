@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useFollow } from "../context/FollowContext";
 import Navbar from "../components/Navbar";
@@ -11,6 +11,7 @@ const API_BASE = "http://127.0.0.1:8000";
 
 function Profile() {
   const { username } = useParams();
+  const navigate = useNavigate();
   const { token, user, fetchCurrentUser } = useAuth();
   const { getFollowStatus, toggleFollow, isFlashing } = useFollow();
 
@@ -144,6 +145,26 @@ function Profile() {
     });
   };
 
+  const handleMessageClick = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/conversations/start/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ username }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        navigate(`/messages/${data.conversation_id}`);
+      }
+    } catch (err) {
+      // Non-critical for now
+    }
+  };
+
   if (loadingProfile) {
     return (
       <div>
@@ -202,17 +223,27 @@ function Profile() {
             <h2 className="profile-username">{profile.username}</h2>
 
             {!isOwnProfile && (
-              <button
-                type="button"
-                className={`profile-follow-btn ${
-                  getFollowStatus(username, profile.is_following)
-                    ? "profile-follow-btn-active"
-                    : ""
-                }`}
-                onClick={handleFollowToggle}
-              >
-                {getFollowStatus(username, profile.is_following) ? "Unfollow" : "Follow"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={`profile-follow-btn ${
+                    getFollowStatus(username, profile.is_following)
+                      ? "profile-follow-btn-active"
+                      : ""
+                  }`}
+                  onClick={handleFollowToggle}
+                >
+                  {getFollowStatus(username, profile.is_following) ? "Unfollow" : "Follow"}
+                </button>
+
+                <button
+                  type="button"
+                  className="profile-message-btn"
+                  onClick={handleMessageClick}
+                >
+                  Message
+                </button>
+              </>
             )}
           </div>
 

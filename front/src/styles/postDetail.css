@@ -1,0 +1,13 @@
+.post-detail-page {
+  max-width: 560px;
+  margin: 20px auto;
+  padding: 0 16px;
+}
+
+.post-detail-status {
+  text-align: center;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  color: #a79cc0;
+  padding: 40px 0;
+}

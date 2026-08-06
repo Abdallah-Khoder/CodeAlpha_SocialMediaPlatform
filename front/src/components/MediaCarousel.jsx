@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // Renders a single image or video for one slide
 function MediaElement({ item }) {
@@ -8,7 +8,7 @@ function MediaElement({ item }) {
   return <video src={item.file} controls />;
 }
 
-function MediaCarousel({ media }) {
+function MediaCarousel({ media, onIndexChange }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -17,6 +17,12 @@ function MediaCarousel({ media }) {
   const startXRef = useRef(0);
 
   const count = media.length;
+
+  // Let the parent (PostCard) know which slide is currently visible,
+  // e.g. so "Share to Story" can use the right image
+  useEffect(() => {
+    if (onIndexChange) onIndexChange(currentIndex);
+  }, [currentIndex]);
 
   const handlePointerDown = (e) => {
     setIsDragging(true);

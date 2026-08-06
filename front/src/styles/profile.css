@@ -102,6 +102,23 @@
   background: #5a2fd1;
 }
 
+.profile-message-btn {
+  border: 1px solid #e8e4f2;
+  background: transparent;
+  color: #6b6178;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.profile-message-btn:hover {
+  background: #f0eafd;
+}
+
 .profile-username {
   font-family: "Sora", sans-serif;
   font-weight: 600;

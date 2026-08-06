@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useStories } from "../context/StoriesContext";
 import StoryViewer from "./StoryViewer";
 import "../styles/storiesBar.css";
 
@@ -7,6 +8,7 @@ const API_BASE = "http://127.0.0.1:8000";
 
 function StoriesBar() {
   const { token, user } = useAuth();
+  const { refreshTrigger } = useStories();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -36,7 +38,7 @@ function StoriesBar() {
 
   useEffect(() => {
     loadStories();
-  }, [token]);
+  }, [token, refreshTrigger]);
 
   const ownGroup = groups.find((g) => g.username === user?.username);
   const otherGroups = groups.filter((g) => g.username !== user?.username);

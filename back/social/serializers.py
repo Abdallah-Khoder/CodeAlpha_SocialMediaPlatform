@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Post, PostMedia, Comment, Profile, Follow , Story, StoryMedia, StoryView
+from .models import Post, PostMedia, Comment, Profile, Follow, Story , Conversation, Message
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -203,23 +203,21 @@ class SuggestedUserSerializer(serializers.ModelSerializer):
             url = profile.profile_picture.url
             return request.build_absolute_uri(url) if request else url
         return None
-
     def get_is_following(self, obj):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
         return Follow.objects.filter(follower=request.user, following=obj).exists()
 
-
-
 class StoryItemSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
     media_type = serializers.SerializerMethodField()
     is_viewed = serializers.SerializerMethodField()
+    related_post_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = Story
-        fields = ["id", "file", "media_type", "created_at", "expires_at", "is_viewed"]
+        fields = ["id", "file", "media_type", "created_at", "expires_at", "is_viewed", "related_post_id"]
 
     def get_file(self, obj):
         media = getattr(obj, "media", None)
@@ -238,3 +236,91 @@ class StoryItemSerializer(serializers.ModelSerializer):
         if not request or not request.user.is_authenticated:
             return False
         return obj.views.filter(user=request.user).exists()
+
+        return Follow.objects.filter(follower=request.user, following=obj).exists()
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+    shared_post = serializers.SerializerMethodField()
+    text = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Message
+        fields = [
+            "id", "sender_username", "text", "image", "shared_post",
+            "created_at", "is_edited", "is_deleted",
+        ]
+        read_only_fields = ["created_at", "is_edited", "is_deleted"]
+
+    def get_text(self, obj):
+        # Hide real content once a message is soft-deleted
+        if obj.is_deleted:
+            return ""
+        return obj.text
+
+    def get_image(self, obj):
+        if obj.is_deleted or not obj.image:
+            return None
+        request = self.context.get("request")
+        url = obj.image.url
+        return request.build_absolute_uri(url) if request else url
+
+    def get_shared_post(self, obj):
+        if obj.is_deleted or not obj.shared_post:
+            return None
+        return PostSerializer(obj.shared_post, context=self.context).data
+
+class ConversationSerializer(serializers.ModelSerializer):
+    other_username = serializers.SerializerMethodField()
+    other_profile_picture = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    last_message_at = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = [
+            "id", "other_username", "other_profile_picture",
+            "last_message", "last_message_at", "unread_count",
+        ]
+
+    def _get_other_user(self, obj):
+        request = self.context.get("request")
+        return obj.participants.exclude(id=request.user.id).first()
+
+    def get_other_username(self, obj):
+        other = self._get_other_user(obj)
+        return other.username if other else None
+
+    def get_other_profile_picture(self, obj):
+        other = self._get_other_user(obj)
+        if not other:
+            return None
+        profile = getattr(other, "profile", None)
+        if profile and profile.profile_picture:
+            request = self.context.get("request")
+            return request.build_absolute_uri(profile.profile_picture.url)
+        return None
+    def get_last_message(self, obj):
+        last = obj.messages.order_by("-created_at").first()
+        if not last:
+            return None
+        if last.is_deleted:
+            return "This message was deleted"
+        if last.text:
+            return last.text[:60]
+        if last.image:
+            return "Photo"
+        if last.shared_post_id:
+            return "Shared a post"
+        return ""
+
+    def get_last_message_at(self, obj):
+        last = obj.messages.order_by("-created_at").first()
+        return last.created_at if last else obj.created_at
+
+    def get_unread_count(self, obj):
+        request = self.context.get("request")
+        return obj.messages.filter(is_read=False).exclude(sender=request.user).count()
