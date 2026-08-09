@@ -1,0 +1,138 @@
+.search-page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+.search-page-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e8e4f2;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  outline: none;
+  background: #ffffff;
+}
+
+.search-page-input:focus {
+  border-color: #6c3ce9;
+}
+
+.search-page-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+  border-bottom: 1px solid #e8e4f2;
+}
+
+.search-page-tab {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #a79cc0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.search-page-tab:hover {
+  color: #6c3ce9;
+}
+
+.search-page-tab-active {
+  color: #6c3ce9;
+  border-bottom-color: #6c3ce9;
+}
+
+.search-page-results {
+  margin-top: 16px;
+}
+
+.search-page-status {
+  text-align: center;
+  padding: 40px 0;
+  font-family: "Inter", sans-serif;
+  font-size: 13.5px;
+  color: #a79cc0;
+}
+
+.search-page-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-page-user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 10px;
+}
+
+.search-page-user-item:hover {
+  background: #f0eafd;
+}
+
+.search-page-user-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.search-page-user-link img,
+.search-page-user-avatar-letter {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.search-page-user-avatar-letter {
+  background: #6c3ce9;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.search-page-user-username {
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: #2b2530;
+}
+
+.search-page-follow-btn {
+  flex-shrink: 0;
+  border: 1px solid #6c3ce9;
+  background: transparent;
+  color: #6c3ce9;
+  font-family: "Sora", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.search-page-follow-btn:hover {
+  background: #f0eafd;
+}
+
+.search-page-post-list {
+  display: flex;
+  flex-direction: column;
+}

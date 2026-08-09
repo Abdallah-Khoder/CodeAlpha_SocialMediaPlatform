@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import "../styles/confirmModal.css";
 
 function ConfirmModal({ message, onConfirm, onCancel }) {
   const [remember, setRemember] = useState(false);
 
-  return (
+  const modalContent = (
     <div className="confirm-modal-overlay" onClick={onCancel}>
       <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
         <p className="confirm-modal-message">{message}</p>
@@ -33,6 +34,10 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
       </div>
     </div>
   );
+
+  // Escape any transformed ancestor (e.g. feed's scroll-reveal wrapper)
+  // that would otherwise break this modal's position:fixed centering
+  return createPortal(modalContent, document.body);
 }
 
 export default ConfirmModal;

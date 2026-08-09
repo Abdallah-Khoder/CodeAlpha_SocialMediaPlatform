@@ -194,3 +194,13 @@
 .profile-content {
   padding-bottom: 30px;
 }
+
+.profile-avatar-story-new {
+  padding: 3px;
+  background: linear-gradient(45deg, #6c3ce9, #d63cc9);
+}
+
+.profile-avatar-story-viewed {
+  padding: 3px;
+  background: #d8d2e0;
+}

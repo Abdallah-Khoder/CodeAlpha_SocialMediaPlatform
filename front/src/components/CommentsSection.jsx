@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { timeAgo } from "../utils/timeAgo";
 
 const API_BASE = "http://127.0.0.1:8000";
 
-function CommentsSection({ postId, onCommentAdded }) {
+function CommentsSection({ postId, onCommentAdded, highlightCommentId }) {
   const { token } = useAuth();
   const [comments, setComments] = useState([]);
   const [nextUrl, setNextUrl] = useState(null);
@@ -12,8 +12,10 @@ function CommentsSection({ postId, onCommentAdded }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [highlightedId, setHighlightedId] = useState(null);
 
-  // Load the first page of comments when this section is opened
+  const hasHandledHighlightRef = useRef(false);
+
   useEffect(() => {
     const loadFirstPage = async () => {
       try {
@@ -33,7 +35,6 @@ function CommentsSection({ postId, onCommentAdded }) {
     loadFirstPage();
   }, [postId, token]);
 
-  // Fetch the next page and append it to the existing list
   const handleLoadMore = async () => {
     if (!nextUrl || loadingMore) return;
 
@@ -49,6 +50,28 @@ function CommentsSection({ postId, onCommentAdded }) {
       setLoadingMore(false);
     }
   };
+
+  // If we arrived here from a "commented on your post" notification,
+  // keep auto-loading pages (silently) until we find that comment, then
+  // scroll to it and flash a highlight for 5 seconds.
+  useEffect(() => {
+    if (!highlightCommentId || loading || hasHandledHighlightRef.current) return;
+
+    const found = comments.find((c) => String(c.id) === String(highlightCommentId));
+
+    if (found) {
+      hasHandledHighlightRef.current = true;
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`comment-${highlightCommentId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      setHighlightedId(highlightCommentId);
+      setTimeout(() => setHighlightedId(null), 5000);
+    } else if (nextUrl && !loadingMore) {
+      handleLoadMore();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comments, loading, nextUrl, loadingMore, highlightCommentId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -88,7 +111,13 @@ function CommentsSection({ postId, onCommentAdded }) {
           )}
 
           {comments.map((comment) => (
-            <div className="comment-item" key={comment.id}>
+            <div
+              className={`comment-item ${
+                String(comment.id) === String(highlightedId) ? "comment-item-highlight" : ""
+              }`}
+              id={`comment-${comment.id}`}
+              key={comment.id}
+            >
               <div className="comment-avatar">
                 {comment.profile_picture ? (
                   <img src={comment.profile_picture} alt={comment.username} />

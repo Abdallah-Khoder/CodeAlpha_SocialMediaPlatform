@@ -31,7 +31,15 @@ from .views import (
     ConversationStartView, 
     MessageListCreateView,
     MessageDetailView,
-
+    UserSearchView,
+    PostSearchView,
+    NotificationListView,
+    NotificationUnreadCountView,
+    NotificationMarkReadView,
+    ConversationsUnreadCountView,
+    StoryDetailGroupView,
+    UserStoryGroupView,
+    ReelsListView
 )
 
 urlpatterns = [
@@ -45,6 +53,11 @@ urlpatterns = [
     path("me/commented/", MyCommentedPostsView.as_view(), name="my-commented"),
     path("me/shared/", MySharedPostsView.as_view(), name="my-shared"),
     path("users/suggested/", SuggestedUsersView.as_view(), name="suggested-users"),
+    path("search/users/", UserSearchView.as_view(), name="search-users"),
+    path("search/posts/", PostSearchView.as_view(), name="search-posts"),
+    path("notifications/", NotificationListView.as_view(), name="notifications"),
+    path("notifications/unread-count/", NotificationUnreadCountView.as_view(), name="notifications-unread-count"),
+    path("notifications/<int:pk>/read/", NotificationMarkReadView.as_view(), name="notification-mark-read"),
     path("profile/update-picture/", ProfilePictureUpdateView.as_view(), name="update-profile-picture"),
     path("users/<str:username>/follow/", FollowToggleView.as_view(), name="user-follow"),
     path("posts/<int:post_id>/like/", LikeToggleView.as_view(), name="post-like"),
@@ -62,8 +75,12 @@ urlpatterns = [
     path("stories/<int:story_id>/viewers/", StoryViewersView.as_view(), name="story-viewers"),
     path("posts/<int:post_id>/share-to-story/", ShareToStoryView.as_view(), name="share-to-story"),
     path("conversations/", ConversationListView.as_view(), name="conversations"),
+    path("conversations/unread-count/", ConversationsUnreadCountView.as_view(), name="conversations-unread-count"),
     path("conversations/start/", ConversationStartView.as_view(), name="conversation-start"),
     path("conversations/<int:conversation_id>/messages/", MessageListCreateView.as_view(), name="conversation-messages"),
     path("messages/<int:pk>/", MessageDetailView.as_view(), name="message-detail"),
+    path("stories/<int:story_id>/detail/", StoryDetailGroupView.as_view(), name="story-detail-group"),
+    path("profile/<str:username>/story-group/", UserStoryGroupView.as_view(), name="user-story-group"),
+    path("reels/", ReelsListView.as_view(), name="reels"),
 
 ]

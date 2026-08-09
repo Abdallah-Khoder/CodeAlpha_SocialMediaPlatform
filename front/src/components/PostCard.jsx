@@ -7,11 +7,20 @@ import { timeAgo } from "../utils/timeAgo";
 import MediaCarousel from "./MediaCarousel";
 import CommentsSection from "./CommentsSection";
 import ConfirmModal from "./ConfirmModal";
+import SendToFriendModal from "./SendToFriendModal";
 import "../styles/postCard.css";
 
 const API_BASE = "http://127.0.0.1:8000";
 
-function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared }) {
+function PostCard({
+  post,
+  isSharedView = false,
+  onDeleted,
+  onUnshared,
+  onShared,
+  initialShowComments = false,
+  highlightCommentId = null,
+}) {
   const { token, user } = useAuth();
   const { getFollowStatus, toggleFollow, isFlashing } = useFollow();
   const { notifyStoriesChanged } = useStories();
@@ -21,8 +30,7 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
   const [saved, setSaved] = useState(post.is_saved);
   const [sharesCount, setSharesCount] = useState(post.shares_count);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
-  const [showComments, setShowComments] = useState(false);
-
+  const [showComments, setShowComments] = useState(initialShowComments);
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content || "");
@@ -33,10 +41,14 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
   const [sharingToStory, setSharingToStory] = useState(false);
   const [shareToast, setShareToast] = useState(null); // { type, message }
   const [visibleMediaIndex, setVisibleMediaIndex] = useState(0);
+  const [showSendToFriend, setShowSendToFriend] = useState(false);
 
   const firstLetter = post.username?.charAt(0)?.toUpperCase() || "?";
   const media = post.media || [];
-  const isFollowingAuthor = getFollowStatus(post.username, post.is_following_author);
+  const isFollowingAuthor = getFollowStatus(
+    post.username,
+    post.is_following_author,
+  );
   const isOwnPost = user?.username === post.username;
 
   const handleLike = async () => {
@@ -107,19 +119,20 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
     setShowShareMenu(false);
     setSharingToStory(true);
 
-    // Send the id of whichever media the user is currently looking at
-    // in the carousel, so that specific image/video gets shared
     const currentMedia = media[visibleMediaIndex];
 
     try {
-      const res = await fetch(`${API_BASE}/api/posts/${post.id}/share-to-story/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Token ${token}`,
+      const res = await fetch(
+        `${API_BASE}/api/posts/${post.id}/share-to-story/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Token ${token}`,
+          },
+          body: JSON.stringify({ media_id: currentMedia?.id || null }),
         },
-        body: JSON.stringify({ media_id: currentMedia?.id || null }),
-      });
+      );
 
       if (!res.ok) throw new Error("Share to story failed");
 
@@ -134,6 +147,15 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
       setSharingToStory(false);
       setTimeout(() => setShareToast(null), 3000);
     }
+  };
+
+  const handleOpenSendToFriend = () => {
+    setShowShareMenu(false);
+    setShowSendToFriend(true);
+  };
+
+  const handleSentToFriend = (newSharesCount) => {
+    setSharesCount(newSharesCount);
   };
 
   const handleUnshareClick = () => {
@@ -154,7 +176,8 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
         headers: { Authorization: `Token ${token}` },
       });
 
-      if (!res.ok) throw new Error(`Unshare request failed with status ${res.status}`);
+      if (!res.ok)
+        throw new Error(`Unshare request failed with status ${res.status}`);
 
       const data = await res.json();
       setSharesCount(data.shares_count);
@@ -241,10 +264,20 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
   };
 
   return (
-    <div className={`post-card ${isFlashing(post.username) ? "follow-success-flash" : ""}`}>
+    <div
+      className={`post-card ${isFlashing(post.username) ? "follow-success-flash" : ""}`}
+    >
       {post.shared_by && (
-        <Link to={`/profile/${post.shared_by.username}`} className="post-card-shared-banner">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <Link
+          to={`/profile/${post.shared_by.username}`}
+          className="post-card-shared-banner"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />
           </svg>
           <span>
@@ -295,7 +328,11 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
                 <button type="button" onClick={handleStartEdit}>
                   Edit
                 </button>
-                <button type="button" className="post-card-menu-delete" onClick={handleDeleteClick}>
+                <button
+                  type="button"
+                  className="post-card-menu-delete"
+                  onClick={handleDeleteClick}
+                >
                   Delete
                 </button>
               </div>
@@ -339,7 +376,12 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
           className={`action-btn ${liked ? "action-btn-active-like" : ""}`}
           onClick={handleLike}
         >
-          <svg viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+          <svg
+            viewBox="0 0 24 24"
+            fill={liked ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M12 21s-7.5-4.5-10-9.5C0.5 7 2.5 3 6.5 3c2 0 3.5 1 5.5 3 2-2 3.5-3 5.5-3 4 0 6 4 4.5 8.5-2.5 5-10 9.5-10 9.5z" />
           </svg>
           <span>{likesCount}</span>
@@ -350,7 +392,12 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
           className="action-btn"
           onClick={() => setShowComments((prev) => !prev)}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
           </svg>
           <span>{commentsCount}</span>
@@ -362,7 +409,12 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
             className="action-btn"
             onClick={() => setShowShareMenu((prev) => !prev)}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />
             </svg>
             <span>{sharesCount}</span>
@@ -373,14 +425,23 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
               <button type="button" onClick={handleShare}>
                 Share
               </button>
-              <button type="button" onClick={handleShareToStory} disabled={sharingToStory}>
+              <button
+                type="button"
+                onClick={handleShareToStory}
+                disabled={sharingToStory}
+              >
                 {sharingToStory ? "Adding..." : "Add To Story"}
+              </button>
+              <button type="button" onClick={handleOpenSendToFriend}>
+                Send to Friend
               </button>
             </div>
           )}
 
           {shareToast && (
-            <div className={`post-card-share-toast post-card-share-toast-${shareToast.type}`}>
+            <div
+              className={`post-card-share-toast post-card-share-toast-${shareToast.type}`}
+            >
               {shareToast.message}
             </div>
           )}
@@ -391,25 +452,34 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
           className={`action-btn action-btn-save ${saved ? "action-btn-active-save" : ""}`}
           onClick={handleSave}
         >
-          <svg viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+          <svg
+            viewBox="0 0 24 24"
+            fill={saved ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
           </svg>
         </button>
 
         {isSharedView && (
-          <button type="button" className="post-card-unshare-btn" onClick={handleUnshareClick}>
+          <button
+            type="button"
+            className="post-card-unshare-btn"
+            onClick={handleUnshareClick}
+          >
             Remove
           </button>
         )}
       </div>
-
+      
       {showComments && (
         <CommentsSection
           postId={post.id}
           onCommentAdded={() => setCommentsCount((prev) => prev + 1)}
+          highlightCommentId={highlightCommentId}
         />
       )}
-
       {confirmAction && (
         <ConfirmModal
           message={
@@ -419,6 +489,14 @@ function PostCard({ post, isSharedView = false, onDeleted, onUnshared, onShared 
           }
           onConfirm={handleConfirmModalConfirm}
           onCancel={() => setConfirmAction(null)}
+        />
+      )}
+
+      {showSendToFriend && (
+        <SendToFriendModal
+          post={post}
+          onClose={() => setShowSendToFriend(false)}
+          onSent={handleSentToFriend}
         />
       )}
     </div>

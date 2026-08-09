@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import ImageCropModal from "./ImageCropModal";
 import "../styles/createPost.css";
 
-// Base URL of the Django backend (adjust if your setup differs)
 const API_BASE = "http://127.0.0.1:8000";
 
 function CreatePost({ onPostCreated }) {
@@ -15,11 +15,16 @@ function CreatePost({ onPostCreated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Images go through a crop step before joining mediaFiles.
+  // cropQueue holds raw files waiting their turn; activeCropFile is
+  // whichever one is currently open in the crop modal.
+  const [cropQueue, setCropQueue] = useState([]);
+  const [activeCropFile, setActiveCropFile] = useState(null);
+
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // Grow the textarea height automatically as the user types
   const handleContentChange = (e) => {
     setContent(e.target.value);
     const el = textareaRef.current;
@@ -29,21 +34,42 @@ function CreatePost({ onPostCreated }) {
     }
   };
 
-  // Called when files are picked from either the image or video input
   const handleFilesSelected = (e, type) => {
     const files = Array.from(e.target.files || []);
 
-    const newItems = files.map((file) => ({
-      file,
-      previewUrl: URL.createObjectURL(file),
-      type, // "image" or "video"
-    }));
+    if (type === "image") {
+      setCropQueue((prev) => [...prev, ...files]);
+    } else {
+      const newItems = files.map((file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        type,
+      }));
+      setMediaFiles((prev) => [...prev, ...newItems]);
+    }
 
-    setMediaFiles((prev) => [...prev, ...newItems]);
     setShowMediaMenu(false);
-
-    // Reset the input so selecting the same file twice still fires onChange
     e.target.value = "";
+  };
+
+  // Pull the next image out of the queue once the modal is free
+  useEffect(() => {
+    if (!activeCropFile && cropQueue.length > 0) {
+      setActiveCropFile(cropQueue[0]);
+      setCropQueue((prev) => prev.slice(1));
+    }
+  }, [cropQueue, activeCropFile]);
+
+  const handleCropDone = (croppedFile) => {
+    setMediaFiles((prev) => [
+      ...prev,
+      { file: croppedFile, previewUrl: URL.createObjectURL(croppedFile), type: "image" },
+    ]);
+    setActiveCropFile(null);
+  };
+
+  const handleCropCancel = () => {
+    setActiveCropFile(null);
   };
 
   const removeMediaAt = (index) => {
@@ -86,7 +112,6 @@ function CreatePost({ onPostCreated }) {
         return;
       }
 
-      // Reset the composer after a successful post
       setContent("");
       mediaFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       setMediaFiles([]);
@@ -196,6 +221,14 @@ function CreatePost({ onPostCreated }) {
           {loading ? "Posting..." : "Post"}
         </button>
       </div>
+
+      {activeCropFile && (
+        <ImageCropModal
+          file={activeCropFile}
+          onCancel={handleCropCancel}
+          onDone={handleCropDone}
+        />
+      )}
     </div>
   );
 }

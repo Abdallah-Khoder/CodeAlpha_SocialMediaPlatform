@@ -7,7 +7,6 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Runs once when the app first loads
   useEffect(() => {
     const savedToken = localStorage.getItem("token");
 
@@ -19,13 +18,15 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Calls /api/me/ using the given token to get the logged-in user's data
   const fetchCurrentUser = async (authToken) => {
+    const effectiveToken = authToken || token;
+    if (!effectiveToken) return;
+
     try {
       const response = await fetch("http://127.0.0.1:8000/api/me/", {
         method: "GET",
         headers: {
-          Authorization: `Token ${authToken}`,
+          Authorization: `Token ${effectiveToken}`,
         },
       });
 
@@ -46,21 +47,20 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Called after successful register/login
+  // Called after successful register/login. Immediately fetches the full
+  // profile (including profile_picture) instead of waiting for a refresh.
   const saveAuth = (data) => {
     setToken(data.token);
-    setUser({ username: data.username });
     localStorage.setItem("token", data.token);
+    fetchCurrentUser(data.token);
   };
 
-  // Clears the session locally (state + localStorage)
   const clearAuth = () => {
     setToken(null);
     setUser(null);
     localStorage.removeItem("token");
   };
 
-  // Calls /api/logout/ then clears the session locally regardless of the result
   const logout = async () => {
     try {
       await fetch("http://127.0.0.1:8000/api/logout/", {
@@ -83,6 +83,7 @@ export function AuthProvider({ children }) {
     saveAuth,
     clearAuth,
     logout,
+    fetchCurrentUser,
   };
 
   return (

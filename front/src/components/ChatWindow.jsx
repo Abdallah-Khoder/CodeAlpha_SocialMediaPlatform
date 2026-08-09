@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import PostCard from "./PostCard";
+import SharedPostPreview from "./SharedPostPreview";
 import ConfirmModal from "./ConfirmModal";
 import "../styles/chatWindow.css";
 
@@ -216,38 +216,43 @@ function ChatWindow({ conversationId }) {
                   </div>
                 )}
 
-                <div className={`chat-bubble ${msg.is_deleted ? "chat-bubble-deleted" : ""}`}>
+                <div className={`chat-message-content ${isMine ? "chat-message-content-mine" : ""}`}>
                   {msg.is_deleted ? (
-                    <p className="chat-text chat-text-deleted">This message was deleted</p>
+                    <div className="chat-bubble chat-bubble-deleted">
+                      <p className="chat-text chat-text-deleted">This message was deleted</p>
+                    </div>
                   ) : isEditingThis ? (
-                    <div className="chat-edit-box">
-                      <textarea
-                        className="chat-edit-input"
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => handleEditKeyDown(e, msg.id)}
-                        rows={1}
-                        autoFocus
-                      />
-                      <div className="chat-edit-actions">
-                        <button type="button" onClick={cancelEdit}>
-                          Cancel
-                        </button>
-                        <button type="button" onClick={() => saveEdit(msg.id)}>
-                          Save
-                        </button>
+                    <div className="chat-bubble">
+                      <div className="chat-edit-box">
+                        <textarea
+                          className="chat-edit-input"
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => handleEditKeyDown(e, msg.id)}
+                          rows={1}
+                          autoFocus
+                        />
+                        <div className="chat-edit-actions">
+                          <button type="button" onClick={cancelEdit}>
+                            Cancel
+                          </button>
+                          <button type="button" onClick={() => saveEdit(msg.id)}>
+                            Save
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : (
                     <>
-                      {msg.shared_post && (
-                        <div className="chat-shared-post">
-                          <PostCard post={msg.shared_post} />
+                      {msg.shared_post && <SharedPostPreview post={msg.shared_post} />}
+
+                      {(msg.image || msg.text) && (
+                        <div className="chat-bubble">
+                          {msg.image && <img src={msg.image} alt="Shared" className="chat-image" />}
+                          {msg.text && <p className="chat-text">{msg.text}</p>}
+                          {msg.is_edited && <span className="chat-edited-label">edited</span>}
                         </div>
                       )}
-                      {msg.image && <img src={msg.image} alt="Shared" className="chat-image" />}
-                      {msg.text && <p className="chat-text">{msg.text}</p>}
-                      {msg.is_edited && <span className="chat-edited-label">edited</span>}
                     </>
                   )}
                 </div>

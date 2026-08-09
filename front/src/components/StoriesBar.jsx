@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useStories } from "../context/StoriesContext";
 import StoryViewer from "./StoryViewer";
@@ -9,11 +10,21 @@ const API_BASE = "http://127.0.0.1:8000";
 function StoriesBar() {
   const { token, user } = useAuth();
   const { refreshTrigger } = useStories();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+
+  // Normally the viewer shows `groups` at `activeGroupIndex`. For a
+  // deep-linked story from a notification (possibly from someone whose
+  // stories aren't in `groups` because you don't follow them), we instead
+  // populate `deepLinkGroups` with a single fetched group and view that.
   const [activeGroupIndex, setActiveGroupIndex] = useState(null); // null = viewer closed
-  const [toast, setToast] = useState(null); // { type: "success" | "error", message: string }
+  const [activeStoryIndex, setActiveStoryIndex] = useState(0);
+  const [deepLinkGroups, setDeepLinkGroups] = useState(null);
+
+  const [toast, setToast] = useState(null);
 
   const fileInputRef = useRef(null);
   const toastTimerRef = useRef(null);
@@ -40,11 +51,78 @@ function StoriesBar() {
     loadStories();
   }, [token, refreshTrigger]);
 
+  // Deep-link support: /home?story=<username>&storyId=<id> (used by
+  // notifications). Tries the normal `groups` first; if the story's owner
+  // isn't in there (e.g. you don't follow them), fetches that one story's
+  // group directly instead.
+  useEffect(() => {
+    const storyUsername = searchParams.get("story");
+    const storyIdParam = searchParams.get("storyId");
+
+    if (!storyUsername || groups.length === 0) return;
+
+    const clearParams = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("story");
+      next.delete("storyId");
+      setSearchParams(next, { replace: true });
+    };
+
+    const groupIdx = groups.findIndex((g) => g.username === storyUsername);
+    if (groupIdx !== -1) {
+      let storyIdx = 0;
+      if (storyIdParam) {
+        const foundIdx = groups[groupIdx].stories.findIndex(
+          (s) => String(s.id) === storyIdParam,
+        );
+        if (foundIdx !== -1) storyIdx = foundIdx;
+      }
+      setDeepLinkGroups(null);
+      setActiveGroupIndex(groupIdx);
+      setActiveStoryIndex(storyIdx);
+      clearParams();
+      return;
+    }
+
+    if (storyIdParam) {
+      const fetchStandaloneGroup = async () => {
+        try {
+          const res = await fetch(
+            `${API_BASE}/api/stories/${storyIdParam}/detail/`,
+            {
+              headers: { Authorization: `Token ${token}` },
+            },
+          );
+          if (!res.ok) {
+            clearParams();
+            return;
+          }
+          const group = await res.json();
+          const storyIdx = group.stories.findIndex(
+            (s) => String(s.id) === storyIdParam,
+          );
+
+          setDeepLinkGroups([group]);
+          setActiveGroupIndex(0);
+          setActiveStoryIndex(storyIdx !== -1 ? storyIdx : 0);
+        } finally {
+          clearParams();
+        }
+      };
+
+      fetchStandaloneGroup();
+    } else {
+      clearParams();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, searchParams.get("story"), searchParams.get("storyId")]);
   const ownGroup = groups.find((g) => g.username === user?.username);
   const otherGroups = groups.filter((g) => g.username !== user?.username);
 
   const handleOwnCircleClick = () => {
     if (ownGroup) {
+      setDeepLinkGroups(null);
+      setActiveStoryIndex(0);
       setActiveGroupIndex(groups.indexOf(ownGroup));
     } else {
       fileInputRef.current?.click();
@@ -88,15 +166,21 @@ function StoriesBar() {
 
   const handleCloseViewer = () => {
     setActiveGroupIndex(null);
-    loadStories(); // refresh so viewed rings update
+    setActiveStoryIndex(0);
+    setDeepLinkGroups(null);
+    loadStories();
   };
 
   if (loading) return null;
 
+  const viewerGroups = deepLinkGroups || groups;
+
   return (
     <div className="stories-bar-wrapper">
       {toast && (
-        <div className={`story-toast story-toast-${toast.type}`}>{toast.message}</div>
+        <div className={`story-toast story-toast-${toast.type}`}>
+          {toast.message}
+        </div>
       )}
 
       <div className="stories-bar">
@@ -119,7 +203,12 @@ function StoriesBar() {
             )}
           </button>
 
-          <button type="button" className="story-add-btn" onClick={handleAddClick} disabled={uploading}>
+          <button
+            type="button"
+            className="story-add-btn"
+            onClick={handleAddClick}
+            disabled={uploading}
+          >
             {uploading ? "..." : "+"}
           </button>
 
@@ -139,7 +228,11 @@ function StoriesBar() {
             <button
               type="button"
               className={`story-circle ${group.has_unviewed ? "story-ring-new" : "story-ring-viewed"}`}
-              onClick={() => setActiveGroupIndex(groups.indexOf(group))}
+              onClick={() => {
+                setDeepLinkGroups(null);
+                setActiveStoryIndex(0);
+                setActiveGroupIndex(groups.indexOf(group));
+              }}
             >
               {group.profile_picture ? (
                 <img src={group.profile_picture} alt={group.username} />
@@ -153,7 +246,12 @@ function StoriesBar() {
       </div>
 
       {activeGroupIndex !== null && (
-        <StoryViewer groups={groups} startGroupIndex={activeGroupIndex} onClose={handleCloseViewer} />
+        <StoryViewer
+          groups={viewerGroups}
+          startGroupIndex={activeGroupIndex}
+          startStoryIndex={activeStoryIndex}
+          onClose={handleCloseViewer}
+        />
       )}
     </div>
   );

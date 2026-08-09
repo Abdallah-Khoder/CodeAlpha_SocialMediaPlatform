@@ -308,3 +308,31 @@
   font-size: 13px;
   color: #ffffff;
 }
+
+@keyframes storyOverlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.story-viewer-overlay {
+  animation: storyOverlayFadeIn 0.3s ease;
+}
+
+@keyframes storyCardPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.story-viewer-card {
+  animation: storyCardPopIn 0.3s ease;
+}

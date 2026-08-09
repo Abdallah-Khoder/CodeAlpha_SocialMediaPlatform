@@ -16,7 +16,31 @@ function Feed({ newPost }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
 
-  const observerRef = useRef(null);
+  // Observer that triggers "load more" pagination (unrelated to the animation)
+  const paginationObserverRef = useRef(null);
+
+  // Observer that reveals each post card the first time it scrolls into view.
+  // Created lazily during render (not inside useEffect) so it already exists
+  // by the time the very first post's ref callback fires during commit.
+  const revealObserverRef = useRef(null);
+  if (!revealObserverRef.current) {
+    revealObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("post-card-in-view");
+            // Reveal once per card, then stop watching it
+            revealObserverRef.current.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+  }
+
+  useEffect(() => {
+    return () => revealObserverRef.current?.disconnect();
+  }, []);
 
   // Load the very first page when the feed mounts
   useEffect(() => {
@@ -72,18 +96,25 @@ function Feed({ newPost }) {
   // When that post scrolls into view, we silently fetch the next batch.
   const sentinelRef = useCallback(
     (node) => {
-      if (observerRef.current) observerRef.current.disconnect();
+      if (paginationObserverRef.current) paginationObserverRef.current.disconnect();
 
-      observerRef.current = new IntersectionObserver((entries) => {
+      paginationObserverRef.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting) {
           loadMore();
         }
       });
 
-      if (node) observerRef.current.observe(node);
+      if (node) paginationObserverRef.current.observe(node);
     },
     [loadMore]
   );
+
+  // Ref callback attached to EVERY post, registering it with the reveal observer
+  const revealRef = useCallback((node) => {
+    if (node) {
+      revealObserverRef.current.observe(node);
+    }
+  }, []);
 
   const handlePostDeleted = (postId) => {
     setPosts((prev) => prev.filter((p) => p.id !== postId));
@@ -106,7 +137,14 @@ function Feed({ newPost }) {
   return (
     <div className="feed">
       {posts.map((post, index) => (
-        <div ref={index === sentinelIndex ? sentinelRef : null} key={post.id}>
+        <div
+          ref={(node) => {
+            revealRef(node);
+            if (index === sentinelIndex) sentinelRef(node);
+          }}
+          className="feed-post-wrapper"
+          key={post.id}
+        >
           <PostCard post={post} onDeleted={handlePostDeleted} />
         </div>
       ))}

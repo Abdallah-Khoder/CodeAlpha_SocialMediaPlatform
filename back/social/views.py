@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Max
+from django.db.models import Max, Q
 
 from rest_framework import status , generics
 from rest_framework.authtoken.models import Token
@@ -13,8 +13,8 @@ from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 
 
-from .serializers import RegisterSerializer , PostSerializer , CommentSerializer , ProfileSerializer , SuggestedUserSerializer , StoryItemSerializer , ConversationSerializer, MessageSerializer
-from .models import Post, PostMedia, Profile ,Follow , Like, Save, Comment, Share , Story, StoryMedia, StoryView , Conversation, Message 
+from .serializers import RegisterSerializer , PostSerializer , CommentSerializer , ProfileSerializer , SuggestedUserSerializer , StoryItemSerializer , ConversationSerializer, MessageSerializer, NotificationSerializer
+from .models import Post, PostMedia, Profile ,Follow , Like, Save, Comment, Share , Story, StoryMedia, StoryView , Conversation, Message, Notification
 
 
 import io
@@ -22,7 +22,19 @@ from PIL import Image, ImageDraw, ImageFont
 from django.core.files.base import ContentFile
 
 
-
+def create_notification(recipient, actor, verb, target_post=None, target_conversation=None,
+                         target_story=None, target_comment=None):
+    if recipient is None or actor is None or recipient.id == actor.id:
+        return
+    Notification.objects.create(
+        recipient=recipient,
+        actor=actor,
+        verb=verb,
+        target_post=target_post,
+        target_conversation=target_conversation,
+        target_story=target_story,
+        target_comment=target_comment,
+    )
 
 
 class RegisterView(APIView):
@@ -114,7 +126,6 @@ class PostListCreateView(generics.ListCreateAPIView):
     pagination_class = PostPagination
 
     def get_queryset(self):
-        # Now returns ALL posts from everyone, not just followed users
         return Post.objects.all().order_by("-created_at")
 
     def create(self, request, *args, **kwargs):
@@ -151,13 +162,12 @@ class LikeToggleView(APIView):
         existing_like = Like.objects.filter(user=request.user, post=post).first()
 
         if existing_like:
-            # Already liked -> remove it (unlike)
             existing_like.delete()
             liked = False
         else:
-            # Not liked yet -> create it
             Like.objects.create(user=request.user, post=post)
             liked = True
+            create_notification(recipient=post.user, actor=request.user, verb="like", target_post=post)
 
         return Response({"liked": liked, "likes_count": post.likes.count()})
 
@@ -195,7 +205,11 @@ class CommentListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         post = get_object_or_404(Post, id=self.kwargs["post_id"])
-        serializer.save(user=self.request.user, post=post)
+        comment = serializer.save(user=self.request.user, post=post)
+        create_notification(
+            recipient=post.user, actor=self.request.user, verb="comment",
+            target_post=post, target_comment=comment,
+        )
 
 
 class ShareView(APIView):
@@ -204,11 +218,11 @@ class ShareView(APIView):
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
         Share.objects.create(user=request.user, post=post)
+        create_notification(recipient=post.user, actor=request.user, verb="share", target_post=post)
         return Response({"shares_count": post.shares.count()})
 
     def delete(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
-        # Removes this user's share(s) of this post ("unshare")
         Share.objects.filter(user=request.user, post=post).delete()
         return Response({"shares_count": post.shares.count()})
 
@@ -238,7 +252,8 @@ class UserSharesView(generics.ListAPIView):
     def get_queryset(self):
         return Post.objects.filter(
             shares__user__username=self.kwargs["username"],
-            shares__from_story=False
+            shares__from_story=False,
+            shares__from_message=False,
         ).distinct().order_by("-shares__created_at")
 
 class MySavedPostsView(generics.ListAPIView):
@@ -279,6 +294,7 @@ class MySharedPostsView(generics.ListAPIView):
         return Post.objects.filter(
             shares__user=self.request.user , 
             shares__from_story=False,
+            shares__from_message=False,
         ).distinct().order_by("-created_at")
 
 
@@ -291,7 +307,6 @@ class FollowToggleView(APIView):
     def post(self, request, username):
         target_user = get_object_or_404(User, username=username)
 
-        # Prevent following yourself
         if target_user == request.user:
             return Response(
                 {"error": "You cannot follow yourself."},
@@ -308,6 +323,7 @@ class FollowToggleView(APIView):
         else:
             Follow.objects.create(follower=request.user, following=target_user)
             following = True
+            create_notification(recipient=target_user, actor=request.user, verb="follow")
 
         return Response({"following": following})
 
@@ -316,7 +332,6 @@ class SuggestedUsersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # IDs of users the current user already follows
         following_ids = list(
             Follow.objects.filter(follower=request.user).values_list(
                 "following_id", flat=True
@@ -324,14 +339,12 @@ class SuggestedUsersView(APIView):
         )
         excluded_ids = following_ids + [request.user.id]
 
-        # Priority 1: users followed by people I follow (mutual connections)
         mutual_candidates = list(
             User.objects.filter(followers__follower_id__in=following_ids)
             .exclude(id__in=excluded_ids)
             .distinct()
         )
 
-        # Priority 2: fill the rest randomly with any other user
         remaining_slots = SUGGESTION_LIMIT - len(mutual_candidates)
         random_candidates = []
         if remaining_slots > 0:
@@ -531,8 +544,6 @@ class ShareToStoryView(APIView):
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
 
-        # Use the specific media item the user was viewing (if provided),
-        # otherwise fall back to the first media item on the post
         media_id = request.data.get("media_id")
         if media_id:
             selected_media = post.media.filter(id=media_id).first()
@@ -541,9 +552,11 @@ class ShareToStoryView(APIView):
 
         story = Story.objects.create(user=request.user, related_post=post)
 
-        # Sharing to your story also counts toward the share number,
-        # but is flagged so it doesn't show up in the "Shares" list/tab
         Share.objects.create(user=request.user, post=post, from_story=True)
+        create_notification(
+            recipient=post.user, actor=request.user, verb="story_share",
+            target_post=post, target_story=story,
+        )
 
         if selected_media:
             selected_media.file.open("rb")
@@ -569,9 +582,8 @@ class ShareToStoryView(APIView):
         return Response(response_data, status=status.HTTP_201_CREATED)
 
     def _generate_text_card(self, text):
-        # Vibely-purple background with the post's text centered on it
         width, height = 1080, 1920
-        background_color = (108, 60, 233)  # matches Vibely's #6c3ce9 accent
+        background_color = (108, 60, 233)
 
         image = Image.new("RGB", (width, height), color=background_color)
         draw = ImageDraw.Draw(image)
@@ -581,7 +593,6 @@ class ShareToStoryView(APIView):
         except IOError:
             font = ImageFont.load_default()
 
-        # Simple word-wrap so long posts don't overflow the card
         max_chars_per_line = 22
         words = (text or "").split()
         lines = []
@@ -622,6 +633,18 @@ class ConversationListView(generics.ListAPIView):
         )
 
 
+class ConversationsUnreadCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = (
+            Message.objects.filter(conversation__participants=request.user, is_read=False)
+            .exclude(sender=request.user)
+            .count()
+        )
+        return Response({"unread_count": count})
+
+
 class ConversationStartView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -634,7 +657,6 @@ class ConversationStartView(APIView):
                 {"error": "You cannot message yourself."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Look for an existing 1-on-1 conversation between these two users
         candidates = Conversation.objects.filter(participants=request.user).filter(
             participants=target_user
         )
@@ -664,7 +686,6 @@ class MessageListCreateView(generics.ListCreateAPIView):
         conversation = get_object_or_404(
             Conversation, id=self.kwargs["conversation_id"], participants=self.request.user
         )
-        # Mark any messages from the other person as read now that we're opening this
         conversation.messages.filter(is_read=False).exclude(sender=self.request.user).update(
             is_read=True
         )
@@ -694,8 +715,24 @@ class MessageListCreateView(generics.ListCreateAPIView):
             shared_post=shared_post,
         )
 
+        if shared_post:
+            Share.objects.create(user=request.user, post=shared_post, from_message=True)
+            create_notification(
+                recipient=shared_post.user, actor=request.user, verb="friend_share", target_post=shared_post
+            )
+
+        other_participants = conversation.participants.exclude(id=request.user.id)
+        for participant in other_participants:
+            create_notification(
+                recipient=participant, actor=request.user, verb="message", target_conversation=conversation
+            )
+
         serializer = self.get_serializer(message)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        response_data = serializer.data
+        if shared_post:
+            response_data["shares_count"] = shared_post.shares.count()
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class MessageDetailView(APIView):
@@ -721,7 +758,6 @@ class MessageDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Editing is only supported for plain text messages
         if message.image or message.shared_post_id:
             return Response(
                 {"error": "Only text messages can be edited."},
@@ -750,9 +786,139 @@ class MessageDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Soft delete: keep the row, hide the content, flag it
         message.is_deleted = True
         message.save()
 
         serializer = MessageSerializer(message, context={"request": request})
         return Response(serializer.data)
+
+
+class UserSearchView(generics.ListAPIView):
+    serializer_class = SuggestedUserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        query = self.request.query_params.get("q", "").strip()
+        if not query:
+            return User.objects.none()
+
+        return (
+            User.objects.filter(
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+            )
+            .exclude(id=self.request.user.id)
+            .distinct()[:30]
+        )
+
+
+class PostSearchView(generics.ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PostPagination
+
+    def get_queryset(self):
+        query = self.request.query_params.get("q", "").strip()
+        if not query:
+            return Post.objects.none()
+
+        return Post.objects.filter(content__icontains=query).order_by("-created_at")
+
+
+class NotificationPagination(PageNumberPagination):
+    page_size = 30
+
+
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = NotificationPagination
+
+    def get_queryset(self):
+        # No longer marks everything as read here -> each notification is
+        # marked read individually, only when the user clicks it
+        return Notification.objects.filter(recipient=self.request.user)
+
+
+class NotificationUnreadCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        return Response({"unread_count": count})
+
+
+class NotificationMarkReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        notification = get_object_or_404(Notification, id=pk, recipient=request.user)
+        notification.is_read = True
+        notification.save()
+        return Response({"is_read": True})
+
+class StoryDetailGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, story_id):
+        story = get_object_or_404(Story, id=story_id)
+
+        if not story.is_active():
+            return Response({"error": "This story has expired."}, status=status.HTTP_404_NOT_FOUND)
+
+        story_user = story.user
+        active_stories = Story.objects.filter(
+            user=story_user, expires_at__gt=timezone.now()
+        ).order_by("created_at")
+
+        profile_picture = None
+        profile = getattr(story_user, "profile", None)
+        if profile and profile.profile_picture:
+            profile_picture = request.build_absolute_uri(profile.profile_picture.url)
+
+        stories_data = [
+            StoryItemSerializer(s, context={"request": request}).data for s in active_stories
+        ]
+
+        return Response({
+            "username": story_user.username,
+            "profile_picture": profile_picture,
+            "stories": stories_data,
+        })
+
+
+class UserStoryGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, username):
+        target_user = get_object_or_404(User, username=username)
+        active_stories = Story.objects.filter(
+            user=target_user, expires_at__gt=timezone.now()
+        ).order_by("created_at")
+
+        if not active_stories.exists():
+            return Response({"has_story": False})
+
+        stories_data = [
+            StoryItemSerializer(s, context={"request": request}).data for s in active_stories
+        ]
+        has_unviewed = any(not s["is_viewed"] for s in stories_data)
+
+        return Response({
+            "has_story": True,
+            "has_unviewed": has_unviewed,
+            "username": target_user.username,
+            "profile_picture": None,  # not needed here, Profile page already has it
+            "stories": stories_data,
+        })
+
+class ReelsListView(generics.ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PostPagination
+
+    def get_queryset(self):
+        # Random order instead of chronological, so the reels feed doesn't
+        # feel like a repetitive list
+        return Post.objects.filter(media__media_type="video").distinct().order_by("?")

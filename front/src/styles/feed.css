@@ -15,3 +15,19 @@
 .feed-status-error {
   color: #d1435b;
 }
+
+/* Every post starts hidden/shifted down. The moment it scrolls into view
+   (tracked per-card by an IntersectionObserver in Feed.jsx), we add
+   .post-card-in-view and it transitions into place. This fires once per
+   card the first time you scroll past it — old cards you've already
+   scrolled by stay put and don't replay it. */
+.feed-post-wrapper {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.85s ease-out, transform 0.85s ease-out;
+}
+
+.feed-post-wrapper.post-card-in-view {
+  opacity: 1;
+  transform: translateY(0);
+}

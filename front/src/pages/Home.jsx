@@ -7,6 +7,7 @@ import SectionFeed from "../components/SectionFeed";
 import SuggestedUsers from "../components/SuggestedUsers";
 import StoriesBar from "../components/StoriesBar";
 import "../styles/home.css";
+import "../styles/pageTransition.css"; 
 
 function Home() {
   // Holds the most recently created post so Feed can show it right away
@@ -16,7 +17,7 @@ function Home() {
   const [activeSection, setActiveSection] = useState(null);
 
   return (
-    <div>
+    <div className="page-fade-in">
       <Navbar />
 
       <div className="home-layout">

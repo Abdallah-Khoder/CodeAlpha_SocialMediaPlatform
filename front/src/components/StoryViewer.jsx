@@ -7,10 +7,10 @@ import "../styles/storyViewer.css";
 const API_BASE = "http://127.0.0.1:8000";
 const IMAGE_DURATION_MS = 15000;
 
-function StoryViewer({ groups, startGroupIndex, onClose }) {
+function StoryViewer({ groups, startGroupIndex, startStoryIndex = 0, onClose }) {
   const { token, user } = useAuth();
   const [groupIndex, setGroupIndex] = useState(startGroupIndex);
-  const [storyIndex, setStoryIndex] = useState(0);
+  const [storyIndex, setStoryIndex] = useState(startStoryIndex);
   const [videoProgress, setVideoProgress] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
   const [viewers, setViewers] = useState([]);
@@ -23,7 +23,6 @@ function StoryViewer({ groups, startGroupIndex, onClose }) {
   const currentStory = group?.stories[storyIndex];
   const isOwnStory = group?.username === user?.username;
 
-  // Mark the currently visible story as viewed
   useEffect(() => {
     const markViewed = async () => {
       try {
@@ -39,7 +38,6 @@ function StoryViewer({ groups, startGroupIndex, onClose }) {
     if (currentStory) markViewed();
   }, [currentStory?.id, token]);
 
-  // Advance to the next story, or the next user's stories, or close
   const goNext = () => {
     if (storyIndex < group.stories.length - 1) {
       setStoryIndex((prev) => prev + 1);
@@ -61,7 +59,6 @@ function StoryViewer({ groups, startGroupIndex, onClose }) {
     }
   };
 
-  // Auto-advance timer: 15s for images. Videos advance via onEnded instead.
   useEffect(() => {
     setVideoProgress(0);
     if (timerRef.current) clearTimeout(timerRef.current);

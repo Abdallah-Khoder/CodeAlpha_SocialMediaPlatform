@@ -5,8 +5,9 @@ import { useFollow } from "../context/FollowContext";
 import Navbar from "../components/Navbar";
 import PostCard from "../components/PostCard";
 import FollowListModal from "../components/FollowListModal";
+import StoryViewer from "../components/StoryViewer";
 import "../styles/profile.css";
-
+import "../styles/pageTransition.css";
 const API_BASE = "http://127.0.0.1:8000";
 
 function Profile() {
@@ -25,6 +26,10 @@ function Profile() {
   const [sharesLoaded, setSharesLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [followModalType, setFollowModalType] = useState(null); // null | "followers" | "following"
+
+  // NEW: story ring on the avatar
+  const [storyGroup, setStoryGroup] = useState(null); // null = no active story
+  const [showStoryViewer, setShowStoryViewer] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -59,8 +64,22 @@ function Profile() {
       }
     };
 
+    // NEW: check whether this user currently has an active story
+    const loadStoryStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/profile/${username}/story-group/`, {
+          headers: { Authorization: `Token ${token}` },
+        });
+        const data = await res.json();
+        setStoryGroup(data.has_story ? data : null);
+      } catch {
+        setStoryGroup(null);
+      }
+    };
+
     loadProfile();
     loadPosts();
+    loadStoryStatus();
     setActiveTab("posts");
     setSharesLoaded(false);
     setShares([]);
@@ -87,6 +106,30 @@ function Profile() {
   // Opens the hidden file picker (only reachable when viewing your own profile)
   const handleAvatarClick = () => {
     if (isOwnProfile) fileInputRef.current?.click();
+  };
+
+  // NEW: avatar click now branches - other people's active story opens the
+  // viewer, your own avatar still opens the picture picker as before
+  const handleAvatarInteract = () => {
+    if (storyGroup && !isOwnProfile) {
+      setShowStoryViewer(true);
+    } else {
+      handleAvatarClick();
+    }
+  };
+
+  // NEW: re-checks story status (used after closing the viewer, so the ring
+  // updates from "new" to "viewed")
+  const refreshStoryStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/profile/${username}/story-group/`, {
+        headers: { Authorization: `Token ${token}` },
+      });
+      const data = await res.json();
+      setStoryGroup(data.has_story ? data : null);
+    } catch {
+      // non-critical
+    }
   };
 
   const handleFileChange = async (e) => {
@@ -187,13 +230,19 @@ function Profile() {
   const fullName = `${profile.first_name} ${profile.last_name}`.trim();
 
   return (
-    <div>
+    <div className="page-fade-in">
       <Navbar />
       <div className="profile-page">
       <div className={`profile-header ${isFlashing(username) ? "follow-success-flash" : ""}`}>
         <div
-          className={`profile-avatar-large ${isOwnProfile ? "profile-avatar-editable" : ""}`}
-          onClick={handleAvatarClick}
+          className={`profile-avatar-large ${isOwnProfile ? "profile-avatar-editable" : ""} ${
+            storyGroup
+              ? storyGroup.has_unviewed
+                ? "profile-avatar-story-new"
+                : "profile-avatar-story-viewed"
+              : ""
+          }`}
+          onClick={handleAvatarInteract}
         >
           {profile.profile_picture ? (
             <img src={profile.profile_picture} alt={profile.username} />
@@ -358,6 +407,17 @@ function Profile() {
         )}
       </div>
       </div>
+
+      {showStoryViewer && storyGroup && (
+        <StoryViewer
+          groups={[storyGroup]}
+          startGroupIndex={0}
+          onClose={() => {
+            setShowStoryViewer(false);
+            refreshStoryStatus();
+          }}
+        />
+      )}
     </div>
   );
 }

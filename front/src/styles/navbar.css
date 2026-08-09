@@ -27,7 +27,6 @@
   align-items: center;
   justify-content: center;
   color: #6b6178;
-  /* margin: 0 auto;   بيصير بالنص تماماً */
   transition: color 0.15s ease;
 }
 

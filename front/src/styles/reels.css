@@ -1,0 +1,40 @@
+.reels-root .navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.reels-page {
+  height: 100vh;
+  padding-top: 65px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  background: #0b0b0f;
+  transition: padding-top 0.25s ease;
+}
+
+/* When the Navbar hides, the reel grows to fill the freed space -
+   true fullscreen instead of a permanently reserved gap */
+.reels-page-full {
+  padding-top: 0;
+}
+
+.reels-status {
+  color: #a79cc0;
+  font-family: "Inter", sans-serif;
+  padding: 40px;
+  text-align: center;
+}
+
+.reels-scroll-container {
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+
+.reels-scroll-container::-webkit-scrollbar {
+  display: none;
+}

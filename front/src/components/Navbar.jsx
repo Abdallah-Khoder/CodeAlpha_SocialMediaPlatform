@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationsBell from "./NotificationsBell";
+import MessagesNavLink from "./MessagesNavLink";
 import "../styles/navbar.css";
 
 function Navbar() {
@@ -8,22 +10,29 @@ function Navbar() {
   const navigate = useNavigate();
   const [hidden, setHidden] = useState(false);
   const lastScrollY = useRef(0);
-
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
       if (currentScrollY > lastScrollY.current && currentScrollY > 80) {
-        setHidden(true); // scrolling down -> hide
+        setHidden(true);
       } else {
-        setHidden(false); // scrolling up -> show
+        setHidden(false);
       }
 
       lastScrollY.current = currentScrollY;
     };
 
+    const handleCustomScroll = (e) => {
+      setHidden(e.detail.hidden);
+    };
+
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("app-scroll", handleCustomScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("app-scroll", handleCustomScroll);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -49,7 +58,7 @@ function Navbar() {
           </svg>
         </Link>
 
-        <Link to="/messages" className="navbar-home-link" aria-label="Messages">
+        <Link to="/search" className="navbar-home-link" aria-label="Search">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -58,10 +67,28 @@ function Navbar() {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </Link>
+
+        <Link to="/reels" className="navbar-home-link" aria-label="Reels">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="2" y="3" width="20" height="18" rx="3" />
+            <path d="M9.5 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none" />
+          </svg>
+        </Link>
+
+        <NotificationsBell />
+
+        <MessagesNavLink />
       </div>
 
       <button className="navbar-logout" onClick={handleLogout}>

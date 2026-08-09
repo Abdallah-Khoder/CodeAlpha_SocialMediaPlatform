@@ -138,7 +138,9 @@ class Share(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="shares")
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="shares")
     created_at = models.DateTimeField(auto_now_add=True)
+
     from_story = models.BooleanField(default=False)
+    from_message = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.username} shared Post {self.post.id}"
@@ -194,7 +196,6 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
 
-    # New: track edits and soft-deletes so the other person can see "edited" / "deleted" state
     is_edited = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
 
@@ -203,3 +204,43 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.sender.username} in Conversation {self.conversation_id}"
+
+
+class Notification(models.Model):
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    actor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="triggered_notifications")
+
+    VERB_CHOICES = [
+        ("like", "Like"),
+        ("comment", "Comment"),
+        ("follow", "Follow"),
+        ("share", "Share"),
+        ("story_share", "Story Share"),
+        ("friend_share", "Friend Share"),
+        ("message", "Message"),
+    ]
+    verb = models.CharField(max_length=20, choices=VERB_CHOICES)
+
+    target_post = models.ForeignKey(
+        Post, on_delete=models.CASCADE, null=True, blank=True, related_name="notifications"
+    )
+    target_conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, null=True, blank=True, related_name="notifications"
+    )
+    # NEW: which exact story (for story_share, to jump directly to it)
+    target_story = models.ForeignKey(
+        Story, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications"
+    )
+    # NEW: which exact comment (to highlight it on the post)
+    target_comment = models.ForeignKey(
+        Comment, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications"
+    )
+
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.actor.username} -> {self.recipient.username} ({self.verb})"

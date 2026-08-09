@@ -1,7 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Post, PostMedia, Comment, Profile, Follow, Story , Conversation, Message
-
+from .models import Post, PostMedia, Comment, Profile, Follow, Story, Conversation, Message, Notification
 
 class RegisterSerializer(serializers.ModelSerializer):
 
@@ -29,29 +28,23 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class PostMediaSerializer(serializers.ModelSerializer):
-    # Simple serializer just to display media info in the response
     class Meta:
         model = PostMedia
         fields = ["id", "file", "media_type", "order"]
 
 
 class PostSerializer(serializers.ModelSerializer):
-    # Read-only nested list, filled automatically via related_name
-    # (we'll make sure the model's related_name on PostMedia -> Post is "media")
     media = PostMediaSerializer(many=True, read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
     profile_picture = serializers.SerializerMethodField()
 
-    # Reaction counters
     likes_count = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
     shares_count = serializers.SerializerMethodField()
 
-    # Whether the currently logged-in user has liked / saved this post
     is_liked = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()
 
-    # Whether the currently logged-in user already follows this post's author
     is_following_author = serializers.SerializerMethodField()
 
     class Meta:
@@ -77,9 +70,6 @@ class PostSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, data):
-        # This only checks "content" itself (empty string allowed here).
-        # The real "content OR files must exist" check happens in the View,
-        # because uploaded files come from request.FILES, not from this data.
         return data
 
     def get_profile_picture(self, obj):
@@ -97,6 +87,8 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.comments.count()
 
     def get_shares_count(self, obj):
+        # This icon count includes ALL share types: normal share,
+        # add to story, and send to friend.
         return obj.shares.count()
 
     def get_is_liked(self, obj):
@@ -121,7 +113,6 @@ class PostSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    # Expose the comment author's username directly (read-only)
     username = serializers.CharField(source="user.username", read_only=True)
     profile_picture = serializers.SerializerMethodField()
 
@@ -149,7 +140,6 @@ class ProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
 
-    # Whether the currently logged-in user follows this profile's owner
     is_following = serializers.SerializerMethodField()
 
     class Meta:
@@ -171,14 +161,14 @@ class ProfileSerializer(serializers.ModelSerializer):
         return obj.user.posts.count()
 
     def get_shares_count(self, obj):
-        return obj.user.shares.count()
+        # The profile's "Shares" number: normal shares ONLY.
+        # Excludes both "add to story" and "send to friend" shares.
+        return obj.user.shares.filter(from_story=False, from_message=False).count()
 
     def get_followers_count(self, obj):
-        # People who follow this profile's user
         return obj.user.followers.count()
 
     def get_following_count(self, obj):
-        # People this profile's user follows
         return obj.user.following.count()
 
     def get_is_following(self, obj):
@@ -203,11 +193,13 @@ class SuggestedUserSerializer(serializers.ModelSerializer):
             url = profile.profile_picture.url
             return request.build_absolute_uri(url) if request else url
         return None
+
     def get_is_following(self, obj):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
         return Follow.objects.filter(follower=request.user, following=obj).exists()
+
 
 class StoryItemSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
@@ -237,8 +229,6 @@ class StoryItemSerializer(serializers.ModelSerializer):
             return False
         return obj.views.filter(user=request.user).exists()
 
-        return Follow.objects.filter(follower=request.user, following=obj).exists()
-
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_username = serializers.CharField(source="sender.username", read_only=True)
@@ -255,7 +245,6 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "is_edited", "is_deleted"]
 
     def get_text(self, obj):
-        # Hide real content once a message is soft-deleted
         if obj.is_deleted:
             return ""
         return obj.text
@@ -271,6 +260,7 @@ class MessageSerializer(serializers.ModelSerializer):
         if obj.is_deleted or not obj.shared_post:
             return None
         return PostSerializer(obj.shared_post, context=self.context).data
+
 
 class ConversationSerializer(serializers.ModelSerializer):
     other_username = serializers.SerializerMethodField()
@@ -303,6 +293,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             return request.build_absolute_uri(profile.profile_picture.url)
         return None
+
     def get_last_message(self, obj):
         last = obj.messages.order_by("-created_at").first()
         if not last:
@@ -324,3 +315,59 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_unread_count(self, obj):
         request = self.context.get("request")
         return obj.messages.filter(is_read=False).exclude(sender=request.user).count()
+
+class NotificationSerializer(serializers.ModelSerializer):
+    actor_username = serializers.CharField(source="actor.username", read_only=True)
+    actor_profile_picture = serializers.SerializerMethodField()
+    target_post_id = serializers.SerializerMethodField()
+    target_conversation_id = serializers.SerializerMethodField()
+    target_story_id = serializers.SerializerMethodField()
+    target_story_username = serializers.SerializerMethodField()
+    target_comment_id = serializers.SerializerMethodField()
+    message = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id", "verb", "actor_username", "actor_profile_picture",
+            "target_post_id", "target_conversation_id",
+            "target_story_id", "target_story_username", "target_comment_id",
+            "message", "is_read", "created_at",
+        ]
+
+    def get_actor_profile_picture(self, obj):
+        profile = getattr(obj.actor, "profile", None)
+        if profile and profile.profile_picture:
+            request = self.context.get("request")
+            url = profile.profile_picture.url
+            return request.build_absolute_uri(url) if request else url
+        return None
+
+    def get_target_post_id(self, obj):
+        return obj.target_post_id
+
+    def get_target_conversation_id(self, obj):
+        return obj.target_conversation_id
+
+    def get_target_story_id(self, obj):
+        return obj.target_story_id
+
+    def get_target_story_username(self, obj):
+        if obj.target_story_id and obj.target_story:
+            return obj.target_story.user.username
+        return None
+
+    def get_target_comment_id(self, obj):
+        return obj.target_comment_id
+
+    def get_message(self, obj):
+        texts = {
+            "like": "liked your post",
+            "comment": "commented on your post",
+            "follow": "started following you",
+            "share": "shared your post",
+            "story_share": "added your post to their story",
+            "friend_share": "shared your post with a friend",
+            "message": "sent you a message",
+        }
+        return texts.get(obj.verb, "")

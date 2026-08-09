@@ -39,12 +39,26 @@
   justify-content: flex-end;
 }
 
+/* Wraps the bubble AND/OR the shared post preview for one message,
+   stacked vertically, aligned to the same side as the message itself */
+.chat-message-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: 70%;
+}
+
+.chat-message-content-mine {
+  align-items: flex-end;
+}
+
 .chat-bubble {
   position: relative;
-  max-width: 70%;
   background: #f0eafd;
   border-radius: 16px;
   padding: 10px 14px;
+  max-width: 100%;
 }
 
 .chat-message-mine .chat-bubble {
@@ -88,14 +102,6 @@
   max-width: 220px;
   border-radius: 12px;
   display: block;
-  margin-bottom: 6px;
-}
-
-.chat-shared-post {
-  max-width: 260px;
-  margin-bottom: 6px;
-  transform: scale(0.92);
-  transform-origin: top left;
 }
 
 .chat-image-preview {
@@ -184,8 +190,6 @@
   cursor: not-allowed;
 }
 
-/* --- Message ⋮ menu: hidden by default, only shows on hover of the row
-   (or while the menu itself is open) so the chat looks clean --- */
 .chat-message-menu-wrap {
   position: relative;
   align-self: center;
@@ -249,7 +253,6 @@
   color: #d94b4b !important;
 }
 
-/* --- Inline edit box --- */
 .chat-edit-box {
   display: flex;
   flex-direction: column;

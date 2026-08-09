@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 
-// Renders a single image or video for one slide
 function MediaElement({ item }) {
   if (item.media_type === "image") {
     return <img src={item.file} alt="Post media" draggable={false} />;
   }
-  return <video src={item.file} controls />;
+  return <video src={item.file} controls draggable={false} />;
 }
 
 function MediaCarousel({ media, onIndexChange }) {
@@ -18,13 +17,16 @@ function MediaCarousel({ media, onIndexChange }) {
 
   const count = media.length;
 
-  // Let the parent (PostCard) know which slide is currently visible,
-  // e.g. so "Share to Story" can use the right image
   useEffect(() => {
     if (onIndexChange) onIndexChange(currentIndex);
   }, [currentIndex]);
 
   const handlePointerDown = (e) => {
+    // Let the native video controls (play/pause, seek bar, volume, etc.)
+    // handle their own clicks normally - don't hijack the pointer for
+    // swipe-dragging when the press starts on a <video> element.
+    if (e.target.tagName === "VIDEO") return;
+
     setIsDragging(true);
     startXRef.current = e.clientX;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -40,13 +42,11 @@ function MediaCarousel({ media, onIndexChange }) {
     if (!isDragging) return;
 
     const containerWidth = containerRef.current?.offsetWidth || 1;
-    const threshold = containerWidth * 0.2; // must drag at least 20% of the width
+    const threshold = containerWidth * 0.2;
 
     if (dragOffset <= -threshold && currentIndex < count - 1) {
-      // Dragged left far enough -> go to next slide
       setCurrentIndex((prev) => prev + 1);
     } else if (dragOffset >= threshold && currentIndex > 0) {
-      // Dragged right far enough -> go to previous slide
       setCurrentIndex((prev) => prev - 1);
     }
 
@@ -56,8 +56,6 @@ function MediaCarousel({ media, onIndexChange }) {
 
   const trackStyle = {
     transform: `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`,
-    // No smooth transition while actively dragging, so the movement follows
-    // the finger/mouse live. Snap back or advance smoothly on release.
     transition: isDragging ? "none" : "transform 0.25s ease",
   };
 

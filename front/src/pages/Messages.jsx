@@ -3,12 +3,13 @@ import Navbar from "../components/Navbar";
 import MessagesSidebar from "../components/MessagesSidebar";
 import ChatWindow from "../components/ChatWindow";
 import "../styles/messages.css";
+import "../styles/pageTransition.css"; 
 
 function Messages() {
   const { conversationId } = useParams();
 
   return (
-    <div>
+    <div className="page-fade-in">
       <Navbar />
       <div className="messages-layout">
         <div className="messages-sidebar">
