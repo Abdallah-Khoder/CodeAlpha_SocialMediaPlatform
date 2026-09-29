@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import Post, PostMedia, Comment, Profile, Follow, Story, Conversation, Message, Notification
+from django.contrib.auth.password_validation import validate_password
+
 
 class RegisterSerializer(serializers.ModelSerializer):
 
@@ -14,6 +16,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {"password": {"write_only": True}}
 
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data["username"],
@@ -25,7 +31,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         Profile.objects.create(user=user)
 
         return user
-
 
 class PostMediaSerializer(serializers.ModelSerializer):
     class Meta:
