@@ -10,7 +10,7 @@ import ConfirmModal from "./ConfirmModal";
 import SendToFriendModal from "./SendToFriendModal";
 import "../styles/postCard.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function PostCard({
   post,

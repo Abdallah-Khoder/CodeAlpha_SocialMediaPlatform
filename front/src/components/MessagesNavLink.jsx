@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "../styles/messagesNavLink.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 const POLL_INTERVAL_MS = 15000;
 
 function MessagesNavLink() {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { timeAgo } from "../utils/timeAgo";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function CommentsSection({ postId, onCommentAdded, highlightCommentId }) {
   const { token } = useAuth();

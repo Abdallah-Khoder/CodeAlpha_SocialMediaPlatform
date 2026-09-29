@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import ImageCropModal from "./ImageCropModal";
 import "../styles/createPost.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function CreatePost({ onPostCreated }) {
   const { user, token } = useAuth();

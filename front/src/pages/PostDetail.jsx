@@ -6,7 +6,7 @@ import PostCard from "../components/PostCard";
 import "../styles/postDetail.css";
 import "../styles/pageTransition.css"; 
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function PostDetail() {
   const { postId } = useParams();

@@ -1,3 +1,4 @@
+import { API_BASE } from "../config";
 import { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext(null);
@@ -23,7 +24,7 @@ export function AuthProvider({ children }) {
     if (!effectiveToken) return;
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/me/", {
+      const response = await fetch(`${API_BASE}/api/me/`, {
         method: "GET",
         headers: {
           Authorization: `Token ${effectiveToken}`,
@@ -63,7 +64,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await fetch("http://127.0.0.1:8000/api/logout/", {
+      await fetch(`${API_BASE}/api/logout/`, {
         method: "POST",
         headers: {
           Authorization: `Token ${token}`,

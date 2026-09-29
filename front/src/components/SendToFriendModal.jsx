@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import "../styles/sendToFriendModal.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function SendToFriendModal({ post, onClose, onSent }) {
   const { token, user } = useAuth();

@@ -6,7 +6,7 @@ import Navbar from "../components/Navbar";
 import PostCard from "../components/PostCard";
 import "../styles/searchPage.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 const TABS = ["profile", "posts"];
 
 function SearchPage() {

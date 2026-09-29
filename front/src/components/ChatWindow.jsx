@@ -4,7 +4,7 @@ import SharedPostPreview from "./SharedPostPreview";
 import ConfirmModal from "./ConfirmModal";
 import "../styles/chatWindow.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 const POLL_INTERVAL_MS = 3000;
 const SKIP_DELETE_CONFIRM_KEY = "vibely_skip_message_delete_confirm";
 

@@ -5,7 +5,7 @@ import { useStories } from "../context/StoriesContext";
 import StoryViewer from "./StoryViewer";
 import "../styles/storiesBar.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function StoriesBar() {
   const { token, user } = useAuth();

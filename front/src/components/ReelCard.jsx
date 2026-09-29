@@ -7,7 +7,7 @@ import ConfirmModal from "./ConfirmModal";
 import SendToFriendModal from "./SendToFriendModal";
 import "../styles/reelCard.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function ReelCard({ post, isMuted, onToggleMute }) {
   const { token, user } = useAuth();

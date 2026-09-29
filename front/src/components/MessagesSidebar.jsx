@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { timeAgo } from "../utils/timeAgo";
 import "../styles/messagesSidebar.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 const POLL_INTERVAL_MS = 8000;
 
 function MessagesSidebar({ activeConversationId }) {

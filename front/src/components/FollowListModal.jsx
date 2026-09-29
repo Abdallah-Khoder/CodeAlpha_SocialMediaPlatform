@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFollow } from "../context/FollowContext";
 import "../styles/followListModal.css";
 
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 function FollowListModal({ username, type, onClose, onFollowChange }) {
   const { token, user } = useAuth();
