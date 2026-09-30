@@ -41,7 +41,9 @@ from .views import (
     ConversationsUnreadCountView,
     StoryDetailGroupView,
     UserStoryGroupView,
-    ReelsListView
+    ReelsListView, 
+    ForgotPasswordView,
+    ResetPasswordView,
 )
 
 urlpatterns = [
@@ -86,5 +88,7 @@ urlpatterns = [
     path("stories/<int:story_id>/detail/", StoryDetailGroupView.as_view(), name="story-detail-group"),
     path("profile/<str:username>/story-group/", UserStoryGroupView.as_view(), name="user-story-group"),
     path("reels/", ReelsListView.as_view(), name="reels"),
+    path("forgot-password/", ForgotPasswordView.as_view(), name="forgot-password"),
+    path("reset-password/", ResetPasswordView.as_view(), name="reset-password"),
 
 ]

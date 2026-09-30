@@ -14,8 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 
 from django.contrib.auth.hashers import make_password
-
-from .models import PendingSignup
+from django.contrib.auth.password_validation import validate_password
 
 
 from .serializers import (
@@ -45,6 +44,7 @@ from .models import (
     Message,
     Notification,
     EmailOTP,
+    PendingSignup , 
 )
 
 
@@ -263,6 +263,10 @@ class LoginView(APIView):
                 status=status.HTTP_200_OK,
             )
 
+        return Response(
+            {"error": "Invalid username or password."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
 class CurrentUserView(APIView):
 
@@ -1164,3 +1168,112 @@ class ReelsListView(generics.ListAPIView):
         # Random order instead of chronological, so the reels feed doesn't
         # feel like a repetitive list
         return Post.objects.filter(media__media_type="video").distinct().order_by("?")
+
+def send_password_reset_email(otp):
+    send_mail(
+        subject="Vibely - Password reset code",
+        message=f"Your Vibely password reset code is: {otp.code}\nIt expires in 10 minutes.",
+        from_email=None,
+        recipient_list=[otp.user.email],
+        fail_silently=False,
+    )
+
+class ForgotPasswordView(APIView):
+
+    def post(self, request):
+        email = request.data.get("email")
+
+        if not email:
+            return Response(
+                {"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "No account found with this email."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        last_otp = EmailOTP.objects.filter(user=user).order_by("-created_at").first()
+        if last_otp and timezone.now() < last_otp.created_at + timedelta(seconds=60):
+            return Response(
+                {"error": "Please wait a minute before requesting a new code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        code = generate_otp_code()
+        otp = EmailOTP.objects.create(
+            user=user,
+            code=code,
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+
+        try:
+            send_password_reset_email(otp)
+        except Exception:
+            return Response(
+                {"error": "Could not send reset email. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {"message": "A reset code has been sent to your email."},
+            status=status.HTTP_200_OK,
+        )
+
+class ResetPasswordView(APIView):
+
+    def post(self, request):
+        email = request.data.get("email")
+        code = request.data.get("code")
+        new_password = request.data.get("new_password")
+
+        if not email or not code or not new_password:
+            return Response(
+                {"error": "Email, code, and new password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Invalid email or code."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        otp = (
+            EmailOTP.objects.filter(user=user, is_used=False)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if otp is None or not otp.is_valid():
+            return Response(
+                {"error": "Code expired or invalid. Please request a new one."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if otp.code != code:
+            otp.attempts += 1
+            otp.save()
+            return Response(
+                {"error": "Incorrect code."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            validate_password(new_password, user=user)
+        except Exception as e:
+            return Response({"new_password": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp.is_used = True
+        otp.save()
+
+        user.password = make_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password reset successfully. You can now log in."},
+            status=status.HTTP_200_OK,
+        )

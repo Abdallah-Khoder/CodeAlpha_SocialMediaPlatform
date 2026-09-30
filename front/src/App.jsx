@@ -13,6 +13,8 @@ import PostDetail from "./pages/PostDetail";
 import Messages from "./pages/Messages";
 import SearchPage from "./pages/SearchPage";
 import Reels from "./pages/Reels"; 
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
   return (
@@ -35,6 +37,23 @@ function App() {
                 element={
                   <PublicRoute>
                     <VerifyEmail />
+                  </PublicRoute>
+                }
+              />
+
+              <Route
+                path="/forgot-password"
+                element={
+                  <PublicRoute>
+                    <ForgotPassword />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/reset-password"
+                element={
+                  <PublicRoute>
+                    <ResetPassword />
                   </PublicRoute>
                 }
               />

@@ -102,7 +102,9 @@ function Login() {
               required
             />
           </div>
-
+          <p className="auth-switch-text" style={{ textAlign: "center", marginTop: "-8px" }}>
+            <Link to="/forgot-password">Forgot password?</Link>
+          </p>
           <button className="signup-button" type="submit" disabled={loading}>
             {loading ? "Logging in..." : "Log In"}
           </button>
