@@ -8,6 +8,7 @@ from django.utils import timezone
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    is_email_verified = models.BooleanField(default=False)
     bio = models.TextField(blank=True)
     profile_picture = models.ImageField(
         upload_to="profile_pictures/", blank=True, null=True
@@ -244,3 +245,34 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.actor.username} -> {self.recipient.username} ({self.verb})"
+
+class EmailOTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="otps")
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    is_used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        return not self.is_used and self.attempts < 5 and timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"OTP for {self.user.username}"
+
+class PendingSignup(models.Model):
+    username = models.CharField(max_length=150, unique=True)
+    email = models.EmailField()
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    password_hash = models.CharField(max_length=255)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    def is_valid(self):
+        return self.attempts < 5 and timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"Pending signup: {self.username}"

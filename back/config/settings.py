@@ -153,3 +153,6 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "Vibely <noreply@vibely.local>"

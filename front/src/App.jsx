@@ -5,13 +5,14 @@ import { StoriesProvider } from "./context/StoriesContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import Signup from "./pages/Signup";
+import VerifyEmail from "./pages/VerifyEmail";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import PostDetail from "./pages/PostDetail";
 import Messages from "./pages/Messages";
 import SearchPage from "./pages/SearchPage";
-import Reels from "./pages/Reels"; // وبالـ Routes:
+import Reels from "./pages/Reels"; 
 
 function App() {
   return (
@@ -28,6 +29,16 @@ function App() {
                   </PublicRoute>
                 }
               />
+
+              <Route
+                path="/verify-email"
+                element={
+                  <PublicRoute>
+                    <VerifyEmail />
+                  </PublicRoute>
+                }
+              />
+
               <Route
                 path="/login"
                 element={

@@ -4,26 +4,79 @@ from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Max, Q
+from django.db import transaction
 
-from rest_framework import status , generics
+from rest_framework import status, generics
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 
+from django.contrib.auth.hashers import make_password
 
-from .serializers import RegisterSerializer , PostSerializer , CommentSerializer , ProfileSerializer , SuggestedUserSerializer , StoryItemSerializer , ConversationSerializer, MessageSerializer, NotificationSerializer
-from .models import Post, PostMedia, Profile ,Follow , Like, Save, Comment, Share , Story, StoryMedia, StoryView , Conversation, Message, Notification
+from .models import PendingSignup
+
+
+from .serializers import (
+    RegisterSerializer,
+    PostSerializer,
+    CommentSerializer,
+    ProfileSerializer,
+    SuggestedUserSerializer,
+    StoryItemSerializer,
+    ConversationSerializer,
+    MessageSerializer,
+    NotificationSerializer,
+)
+from .models import (
+    Post,
+    PostMedia,
+    Profile,
+    Follow,
+    Like,
+    Save,
+    Comment,
+    Share,
+    Story,
+    StoryMedia,
+    StoryView,
+    Conversation,
+    Message,
+    Notification,
+    EmailOTP,
+)
 
 
 import io
 from PIL import Image, ImageDraw, ImageFont
 from django.core.files.base import ContentFile
 
+from django.core.mail import send_mail
+from datetime import timedelta
 
-def create_notification(recipient, actor, verb, target_post=None, target_conversation=None,
-                         target_story=None, target_comment=None):
+
+def generate_otp_code():
+    return f"{random.randint(0, 999999):06d}"
+
+
+def send_pending_signup_email(pending):
+    send_mail(
+        subject="Vibely - Your verification code",
+        message=f"Your Vibely verification code is: {pending.code}\nIt expires in 10 minutes.",
+        from_email=None,
+        recipient_list=[pending.email],
+        fail_silently=False,
+    )
+def create_notification(
+    recipient,
+    actor,
+    verb,
+    target_post=None,
+    target_conversation=None,
+    target_story=None,
+    target_comment=None,
+):
     if recipient is None or actor is None or recipient.id == actor.id:
         return
     Notification.objects.create(
@@ -37,27 +90,148 @@ def create_notification(recipient, actor, verb, target_post=None, target_convers
     )
 
 
+
 class RegisterView(APIView):
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
-
         if serializer.is_valid():
-            user = serializer.save()
+            data = serializer.validated_data
 
-            token, created = Token.objects.get_or_create(user=user)
+            PendingSignup.objects.filter(
+                username=data["username"], expires_at__lt=timezone.now()
+            ).delete()
+            PendingSignup.objects.filter(
+                email__iexact=data["email"], expires_at__lt=timezone.now()
+            ).delete()
+
+            code = generate_otp_code()
+
+            try:
+                pending = PendingSignup.objects.create(
+                    username=data["username"],
+                    email=data["email"],
+                    first_name=data["first_name"],
+                    last_name=data["last_name"],
+                    password_hash=make_password(data["password"]),
+                    code=code,
+                    expires_at=timezone.now() + timedelta(minutes=10),
+                )
+                send_pending_signup_email(pending)
+            except Exception:
+                return Response(
+                    {"general": ["Could not send verification email. Please try again."]},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
             return Response(
                 {
-                    "message": "Account created successfully",
-                    "token": token.key,
-                    "username": user.username,
+                    "message": "Check your email for the verification code.",
+                    "username": pending.username,
                 },
                 status=status.HTTP_201_CREATED,
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class VerifyEmailView(APIView):
+
+    def post(self, request):
+        username = request.data.get("username")
+        code = request.data.get("code")
+
+        if not username or not code:
+            return Response(
+                {"error": "Username and code are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            pending = PendingSignup.objects.get(username=username)
+        except PendingSignup.DoesNotExist:
+            return Response(
+                {"error": "No pending signup found. Please sign up again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not pending.is_valid():
+            pending.delete()
+            return Response(
+                {"error": "Code expired. Please sign up again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if pending.code != code:
+            pending.attempts += 1
+            pending.save()
+            return Response(
+                {"error": "Incorrect code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User(
+            username=pending.username,
+            email=pending.email,
+            first_name=pending.first_name,
+            last_name=pending.last_name,
+            password=pending.password_hash,
+        )
+        user.save()
+
+        Profile.objects.create(user=user, is_email_verified=True)
+
+        pending.delete()
+
+        token, created = Token.objects.get_or_create(user=user)
+
+        return Response(
+            {
+                "message": "Email verified successfully.",
+                "token": token.key,
+                "username": user.username,
+            },
+            status=status.HTTP_200_OK,
+        )
+class ResendCodeView(APIView):
+
+    def post(self, request):
+        username = request.data.get("username")
+
+        if not username:
+            return Response(
+                {"error": "Username is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            pending = PendingSignup.objects.get(username=username)
+        except PendingSignup.DoesNotExist:
+            return Response(
+                {"error": "No pending signup found. Please sign up again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if timezone.now() < pending.created_at + timedelta(seconds=60):
+            return Response(
+                {"error": "Please wait a minute before requesting a new code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        pending.code = generate_otp_code()
+        pending.created_at = timezone.now()
+        pending.expires_at = timezone.now() + timedelta(minutes=10)
+        pending.attempts = 0
+        pending.save()
+
+        try:
+            send_pending_signup_email(pending)
+        except Exception:
+            return Response(
+                {"error": "Could not send verification email. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({"message": "A new code has been sent."}, status=status.HTTP_200_OK)
 
 class LoginView(APIView):
 
@@ -68,6 +242,16 @@ class LoginView(APIView):
         user = authenticate(username=username, password=password)
 
         if user is not None:
+            if not user.profile.is_email_verified:
+                return Response(
+                    {
+                        "error": "Email not verified. Please check your inbox for the verification code.",
+                        "email_not_verified": True,
+                        "username": user.username,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             token, created = Token.objects.get_or_create(user=user)
 
             return Response(
@@ -78,11 +262,6 @@ class LoginView(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
-
-        return Response(
-            {"error": "Invalid username or password"},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
 
 
 class CurrentUserView(APIView):
@@ -105,7 +284,8 @@ class CurrentUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-    
+
+
 class LogoutView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -148,12 +328,14 @@ class PostListCreateView(generics.ListCreateAPIView):
             else:
                 continue
 
-            PostMedia.objects.create(post=post, file=file, media_type=media_type, order=index)
+            PostMedia.objects.create(
+                post=post, file=file, media_type=media_type, order=index
+            )
 
         serializer = self.get_serializer(post)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    
+
 class LikeToggleView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -167,7 +349,9 @@ class LikeToggleView(APIView):
         else:
             Like.objects.create(user=request.user, post=post)
             liked = True
-            create_notification(recipient=post.user, actor=request.user, verb="like", target_post=post)
+            create_notification(
+                recipient=post.user, actor=request.user, verb="like", target_post=post
+            )
 
         return Response({"liked": liked, "likes_count": post.likes.count()})
 
@@ -199,16 +383,19 @@ class CommentListCreateView(generics.ListCreateAPIView):
     pagination_class = CommentPagination
 
     def get_queryset(self):
-        return Comment.objects.filter(
-            post_id=self.kwargs["post_id"]
-        ).order_by("created_at")
+        return Comment.objects.filter(post_id=self.kwargs["post_id"]).order_by(
+            "created_at"
+        )
 
     def perform_create(self, serializer):
         post = get_object_or_404(Post, id=self.kwargs["post_id"])
         comment = serializer.save(user=self.request.user, post=post)
         create_notification(
-            recipient=post.user, actor=self.request.user, verb="comment",
-            target_post=post, target_comment=comment,
+            recipient=post.user,
+            actor=self.request.user,
+            verb="comment",
+            target_post=post,
+            target_comment=comment,
         )
 
 
@@ -218,7 +405,9 @@ class ShareView(APIView):
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
         Share.objects.create(user=request.user, post=post)
-        create_notification(recipient=post.user, actor=request.user, verb="share", target_post=post)
+        create_notification(
+            recipient=post.user, actor=request.user, verb="share", target_post=post
+        )
         return Response({"shares_count": post.shares.count()})
 
     def delete(self, request, post_id):
@@ -240,9 +429,9 @@ class UserPostsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Post.objects.filter(
-            user__username=self.kwargs["username"]
-        ).order_by("-created_at")
+        return Post.objects.filter(user__username=self.kwargs["username"]).order_by(
+            "-created_at"
+        )
 
 
 class UserSharesView(generics.ListAPIView):
@@ -250,20 +439,27 @@ class UserSharesView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Post.objects.filter(
-            shares__user__username=self.kwargs["username"],
-            shares__from_story=False,
-            shares__from_message=False,
-        ).distinct().order_by("-shares__created_at")
+        return (
+            Post.objects.filter(
+                shares__user__username=self.kwargs["username"],
+                shares__from_story=False,
+                shares__from_message=False,
+            )
+            .distinct()
+            .order_by("-shares__created_at")
+        )
+
 
 class MySavedPostsView(generics.ListAPIView):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Post.objects.filter(
-            saved_by__user=self.request.user
-        ).distinct().order_by("-created_at")
+        return (
+            Post.objects.filter(saved_by__user=self.request.user)
+            .distinct()
+            .order_by("-created_at")
+        )
 
 
 class MyLikedPostsView(generics.ListAPIView):
@@ -271,9 +467,11 @@ class MyLikedPostsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Post.objects.filter(
-            likes__user=self.request.user
-        ).distinct().order_by("-created_at")
+        return (
+            Post.objects.filter(likes__user=self.request.user)
+            .distinct()
+            .order_by("-created_at")
+        )
 
 
 class MyCommentedPostsView(generics.ListAPIView):
@@ -281,9 +479,11 @@ class MyCommentedPostsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Post.objects.filter(
-            comments__user=self.request.user
-        ).distinct().order_by("-created_at")
+        return (
+            Post.objects.filter(comments__user=self.request.user)
+            .distinct()
+            .order_by("-created_at")
+        )
 
 
 class MySharedPostsView(generics.ListAPIView):
@@ -291,11 +491,15 @@ class MySharedPostsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Post.objects.filter(
-            shares__user=self.request.user , 
-            shares__from_story=False,
-            shares__from_message=False,
-        ).distinct().order_by("-created_at")
+        return (
+            Post.objects.filter(
+                shares__user=self.request.user,
+                shares__from_story=False,
+                shares__from_message=False,
+            )
+            .distinct()
+            .order_by("-created_at")
+        )
 
 
 SUGGESTION_LIMIT = 5
@@ -323,7 +527,9 @@ class FollowToggleView(APIView):
         else:
             Follow.objects.create(follower=request.user, following=target_user)
             following = True
-            create_notification(recipient=target_user, actor=request.user, verb="follow")
+            create_notification(
+                recipient=target_user, actor=request.user, verb="follow"
+            )
 
         return Response({"following": following})
 
@@ -357,8 +563,11 @@ class SuggestedUsersView(APIView):
 
         suggestions = (mutual_candidates + random_candidates)[:SUGGESTION_LIMIT]
 
-        serializer = SuggestedUserSerializer(suggestions, many=True, context={"request": request})
+        serializer = SuggestedUserSerializer(
+            suggestions, many=True, context={"request": request}
+        )
         return Response(serializer.data)
+
 
 class ProfilePictureUpdateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -375,9 +584,10 @@ class ProfilePictureUpdateView(APIView):
         profile.profile_picture = file
         profile.save()
 
-        return Response({
-            "profile_picture": request.build_absolute_uri(profile.profile_picture.url)
-        })
+        return Response(
+            {"profile_picture": request.build_absolute_uri(profile.profile_picture.url)}
+        )
+
 
 class FollowersListView(generics.ListAPIView):
     serializer_class = SuggestedUserSerializer
@@ -401,6 +611,7 @@ class FollowingListView(generics.ListAPIView):
             "following_id", flat=True
         )
         return User.objects.filter(id__in=following_ids)
+
 
 class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PostSerializer
@@ -437,7 +648,6 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-
 class StoriesView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -448,9 +658,11 @@ class StoriesView(APIView):
         )
         user_ids = list(following_ids) + [request.user.id]
 
-        active_stories = Story.objects.filter(
-            user_id__in=user_ids, expires_at__gt=now
-        ).select_related("user", "user__profile").order_by("created_at")
+        active_stories = (
+            Story.objects.filter(user_id__in=user_ids, expires_at__gt=now)
+            .select_related("user", "user__profile")
+            .order_by("created_at")
+        )
 
         grouped = {}
         order = []
@@ -461,7 +673,9 @@ class StoriesView(APIView):
                 profile_picture = None
                 profile = getattr(story.user, "profile", None)
                 if profile and profile.profile_picture:
-                    profile_picture = request.build_absolute_uri(profile.profile_picture.url)
+                    profile_picture = request.build_absolute_uri(
+                        profile.profile_picture.url
+                    )
 
                 grouped[uid] = {
                     "username": story.user.username,
@@ -554,8 +768,11 @@ class ShareToStoryView(APIView):
 
         Share.objects.create(user=request.user, post=post, from_story=True)
         create_notification(
-            recipient=post.user, actor=request.user, verb="story_share",
-            target_post=post, target_story=story,
+            recipient=post.user,
+            actor=request.user,
+            verb="story_share",
+            target_post=post,
+            target_story=story,
         )
 
         if selected_media:
@@ -638,7 +855,9 @@ class ConversationsUnreadCountView(APIView):
 
     def get(self, request):
         count = (
-            Message.objects.filter(conversation__participants=request.user, is_read=False)
+            Message.objects.filter(
+                conversation__participants=request.user, is_read=False
+            )
             .exclude(sender=request.user)
             .count()
         )
@@ -654,7 +873,8 @@ class ConversationStartView(APIView):
 
         if target_user == request.user:
             return Response(
-                {"error": "You cannot message yourself."}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "You cannot message yourself."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         candidates = Conversation.objects.filter(participants=request.user).filter(
@@ -684,11 +904,13 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         conversation = get_object_or_404(
-            Conversation, id=self.kwargs["conversation_id"], participants=self.request.user
+            Conversation,
+            id=self.kwargs["conversation_id"],
+            participants=self.request.user,
         )
-        conversation.messages.filter(is_read=False).exclude(sender=self.request.user).update(
-            is_read=True
-        )
+        conversation.messages.filter(is_read=False).exclude(
+            sender=self.request.user
+        ).update(is_read=True)
         return conversation.messages.all()
 
     def create(self, request, *args, **kwargs):
@@ -699,7 +921,9 @@ class MessageListCreateView(generics.ListCreateAPIView):
         text = request.data.get("text", "").strip()
         image = request.FILES.get("image")
         shared_post_id = request.data.get("shared_post_id")
-        shared_post = Post.objects.filter(id=shared_post_id).first() if shared_post_id else None
+        shared_post = (
+            Post.objects.filter(id=shared_post_id).first() if shared_post_id else None
+        )
 
         if not text and not image and not shared_post:
             return Response(
@@ -718,13 +942,19 @@ class MessageListCreateView(generics.ListCreateAPIView):
         if shared_post:
             Share.objects.create(user=request.user, post=shared_post, from_message=True)
             create_notification(
-                recipient=shared_post.user, actor=request.user, verb="friend_share", target_post=shared_post
+                recipient=shared_post.user,
+                actor=request.user,
+                verb="friend_share",
+                target_post=shared_post,
             )
 
         other_participants = conversation.participants.exclude(id=request.user.id)
         for participant in other_participants:
             create_notification(
-                recipient=participant, actor=request.user, verb="message", target_conversation=conversation
+                recipient=participant,
+                actor=request.user,
+                verb="message",
+                target_conversation=conversation,
             )
 
         serializer = self.get_serializer(message)
@@ -845,7 +1075,9 @@ class NotificationUnreadCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        count = Notification.objects.filter(
+            recipient=request.user, is_read=False
+        ).count()
         return Response({"unread_count": count})
 
 
@@ -858,6 +1090,7 @@ class NotificationMarkReadView(APIView):
         notification.save()
         return Response({"is_read": True})
 
+
 class StoryDetailGroupView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -865,7 +1098,9 @@ class StoryDetailGroupView(APIView):
         story = get_object_or_404(Story, id=story_id)
 
         if not story.is_active():
-            return Response({"error": "This story has expired."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "This story has expired."}, status=status.HTTP_404_NOT_FOUND
+            )
 
         story_user = story.user
         active_stories = Story.objects.filter(
@@ -878,14 +1113,17 @@ class StoryDetailGroupView(APIView):
             profile_picture = request.build_absolute_uri(profile.profile_picture.url)
 
         stories_data = [
-            StoryItemSerializer(s, context={"request": request}).data for s in active_stories
+            StoryItemSerializer(s, context={"request": request}).data
+            for s in active_stories
         ]
 
-        return Response({
-            "username": story_user.username,
-            "profile_picture": profile_picture,
-            "stories": stories_data,
-        })
+        return Response(
+            {
+                "username": story_user.username,
+                "profile_picture": profile_picture,
+                "stories": stories_data,
+            }
+        )
 
 
 class UserStoryGroupView(APIView):
@@ -901,17 +1139,21 @@ class UserStoryGroupView(APIView):
             return Response({"has_story": False})
 
         stories_data = [
-            StoryItemSerializer(s, context={"request": request}).data for s in active_stories
+            StoryItemSerializer(s, context={"request": request}).data
+            for s in active_stories
         ]
         has_unviewed = any(not s["is_viewed"] for s in stories_data)
 
-        return Response({
-            "has_story": True,
-            "has_unviewed": has_unviewed,
-            "username": target_user.username,
-            "profile_picture": None,  # not needed here, Profile page already has it
-            "stories": stories_data,
-        })
+        return Response(
+            {
+                "has_story": True,
+                "has_unviewed": has_unviewed,
+                "username": target_user.username,
+                "profile_picture": None,  # not needed here, Profile page already has it
+                "stories": stories_data,
+            }
+        )
+
 
 class ReelsListView(generics.ListAPIView):
     serializer_class = PostSerializer

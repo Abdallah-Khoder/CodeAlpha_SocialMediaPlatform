@@ -10,6 +10,7 @@ function Signup() {
 
   const [formData, setFormData] = useState({
     username: "",
+    email: "",
     first_name: "",
     last_name: "",
     password: "",
@@ -40,10 +41,9 @@ function Signup() {
 
       if (response.ok) {
         setSuccessMsg(data.message);
-        saveAuth(data);
 
         setTimeout(() => {
-          navigate("/home");
+          navigate("/verify-email", { state: { username: data.username } });
         }, 800);
       } else {
         setErrors(data);
@@ -58,21 +58,89 @@ function Signup() {
   return (
     <div className="signup-page">
       <svg className="floral floral-top" viewBox="0 0 200 200" fill="none">
-        <path d="M20 180 C 40 140, 30 100, 60 70 C 80 50, 100 55, 110 40"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <ellipse cx="65" cy="68" rx="10" ry="6" stroke="currentColor" strokeWidth="1.5" transform="rotate(-30 65 68)" />
-        <ellipse cx="85" cy="55" rx="9" ry="5" stroke="currentColor" strokeWidth="1.5" transform="rotate(-10 85 55)" />
-        <ellipse cx="108" cy="42" rx="8" ry="5" stroke="currentColor" strokeWidth="1.5" transform="rotate(20 108 42)" />
-        <circle cx="112" cy="38" r="4" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M20 180 C 40 140, 30 100, 60 70 C 80 50, 100 55, 110 40"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <ellipse
+          cx="65"
+          cy="68"
+          rx="10"
+          ry="6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          transform="rotate(-30 65 68)"
+        />
+        <ellipse
+          cx="85"
+          cy="55"
+          rx="9"
+          ry="5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          transform="rotate(-10 85 55)"
+        />
+        <ellipse
+          cx="108"
+          cy="42"
+          rx="8"
+          ry="5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          transform="rotate(20 108 42)"
+        />
+        <circle
+          cx="112"
+          cy="38"
+          r="4"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
       </svg>
 
       <svg className="floral floral-bottom" viewBox="0 0 200 200" fill="none">
-        <path d="M180 20 C 160 60, 170 100, 140 130 C 120 150, 100 145, 90 160"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <ellipse cx="135" cy="132" rx="10" ry="6" stroke="currentColor" strokeWidth="1.5" transform="rotate(150 135 132)" />
-        <ellipse cx="115" cy="145" rx="9" ry="5" stroke="currentColor" strokeWidth="1.5" transform="rotate(170 115 145)" />
-        <ellipse cx="92" cy="158" rx="8" ry="5" stroke="currentColor" strokeWidth="1.5" transform="rotate(200 92 158)" />
-        <circle cx="88" cy="162" r="4" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M180 20 C 160 60, 170 100, 140 130 C 120 150, 100 145, 90 160"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <ellipse
+          cx="135"
+          cy="132"
+          rx="10"
+          ry="6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          transform="rotate(150 135 132)"
+        />
+        <ellipse
+          cx="115"
+          cy="145"
+          rx="9"
+          ry="5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          transform="rotate(170 115 145)"
+        />
+        <ellipse
+          cx="92"
+          cy="158"
+          rx="8"
+          ry="5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          transform="rotate(200 92 158)"
+        />
+        <circle
+          cx="88"
+          cy="162"
+          r="4"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
       </svg>
 
       <div className="signup-card">
@@ -98,6 +166,20 @@ function Signup() {
             />
             {errors.username && (
               <span className="error-message">{errors.username[0]}</span>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+            {errors.email && (
+              <span className="error-message">{errors.email[0]}</span>
             )}
           </div>
 

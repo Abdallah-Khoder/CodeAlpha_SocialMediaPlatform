@@ -1,36 +1,65 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Post, PostMedia, Comment, Profile, Follow, Story, Conversation, Message, Notification
+from .models import (
+    Post,
+    PostMedia,
+    Comment,
+    Profile,
+    Follow,
+    Story,
+    Conversation,
+    Message,
+    Notification,
+    PendingSignup,
+)
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+
+    email = serializers.EmailField(required=True)
 
     class Meta:
         model = User
         fields = [
             "username",
+            "email",
             "first_name",
             "last_name",
             "password",
         ]
         extra_kwargs = {"password": {"write_only": True}}
 
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError(
+                "This username already exists."
+            )
+        if PendingSignup.objects.filter(
+            username=value, expires_at__gt=timezone.now()
+        ).exists():
+            raise serializers.ValidationError(
+                "This username already exists."
+            )
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "This email already exists."
+            )
+        if PendingSignup.objects.filter(
+            email__iexact=value, expires_at__gt=timezone.now()
+        ).exists():
+            raise serializers.ValidationError(
+                "This email already exists."
+            )
+        return value
+
     def validate_password(self, value):
         validate_password(value)
         return value
-
-    def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data["username"],
-            first_name=validated_data["first_name"],
-            last_name=validated_data["last_name"],
-            password=validated_data["password"],
-        )
-
-        Profile.objects.create(user=user)
-
-        return user
 
 class PostMediaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -70,9 +99,7 @@ class PostSerializer(serializers.ModelSerializer):
             "is_following_author",
         ]
         read_only_fields = ["user", "created_at"]
-        extra_kwargs = {
-            "content": {"required": False, "allow_blank": True}
-        }
+        extra_kwargs = {"content": {"required": False, "allow_blank": True}}
 
     def validate(self, data):
         return data
@@ -189,7 +216,14 @@ class SuggestedUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "profile_picture", "is_following"]
+        fields = [
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "profile_picture",
+            "is_following",
+        ]
 
     def get_profile_picture(self, obj):
         profile = getattr(obj, "profile", None)
@@ -214,7 +248,15 @@ class StoryItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Story
-        fields = ["id", "file", "media_type", "created_at", "expires_at", "is_viewed", "related_post_id"]
+        fields = [
+            "id",
+            "file",
+            "media_type",
+            "created_at",
+            "expires_at",
+            "is_viewed",
+            "related_post_id",
+        ]
 
     def get_file(self, obj):
         media = getattr(obj, "media", None)
@@ -244,8 +286,14 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = [
-            "id", "sender_username", "text", "image", "shared_post",
-            "created_at", "is_edited", "is_deleted",
+            "id",
+            "sender_username",
+            "text",
+            "image",
+            "shared_post",
+            "created_at",
+            "is_edited",
+            "is_deleted",
         ]
         read_only_fields = ["created_at", "is_edited", "is_deleted"]
 
@@ -277,8 +325,12 @@ class ConversationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Conversation
         fields = [
-            "id", "other_username", "other_profile_picture",
-            "last_message", "last_message_at", "unread_count",
+            "id",
+            "other_username",
+            "other_profile_picture",
+            "last_message",
+            "last_message_at",
+            "unread_count",
         ]
 
     def _get_other_user(self, obj):
@@ -321,6 +373,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return obj.messages.filter(is_read=False).exclude(sender=request.user).count()
 
+
 class NotificationSerializer(serializers.ModelSerializer):
     actor_username = serializers.CharField(source="actor.username", read_only=True)
     actor_profile_picture = serializers.SerializerMethodField()
@@ -334,10 +387,18 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = [
-            "id", "verb", "actor_username", "actor_profile_picture",
-            "target_post_id", "target_conversation_id",
-            "target_story_id", "target_story_username", "target_comment_id",
-            "message", "is_read", "created_at",
+            "id",
+            "verb",
+            "actor_username",
+            "actor_profile_picture",
+            "target_post_id",
+            "target_conversation_id",
+            "target_story_id",
+            "target_story_username",
+            "target_comment_id",
+            "message",
+            "is_read",
+            "created_at",
         ]
 
     def get_actor_profile_picture(self, obj):
