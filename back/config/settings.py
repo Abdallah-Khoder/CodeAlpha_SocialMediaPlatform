@@ -13,6 +13,11 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -151,8 +156,28 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
     "CSRF_TRUSTED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL")
+AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
+AWS_S3_ADDRESSING_STYLE = "path"
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = False
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+
+if AWS_ACCESS_KEY_ID:
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+    }
+    AWS_S3_CUSTOM_DOMAIN = (
+        f"{SUPABASE_URL.replace('https://', '')}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}"
+    )
+    MEDIA_URL = f"{SUPABASE_URL}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}/"
+else:
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "Vibely <noreply@vibely.local>"
