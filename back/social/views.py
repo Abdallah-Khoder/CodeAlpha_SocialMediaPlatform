@@ -55,19 +55,48 @@ from django.core.files.base import ContentFile
 from django.core.mail import send_mail
 from datetime import timedelta
 
+from django.core.mail import EmailMultiAlternatives
 
 def generate_otp_code():
     return f"{random.randint(0, 999999):06d}"
 
 
+
+def _build_code_email(subject, code, purpose_text):
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #fafafa; border-radius: 12px;">
+        <h2 style="color: #1a1a1a; margin-bottom: 4px;">Vibely</h2>
+        <p style="color: #555; font-size: 15px;">{purpose_text}</p>
+        <div style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #7b2ff7;">{code}</span>
+        </div>
+        <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
+    </div>
+    """
+    text_content = f"Your Vibely code is: {code}\nIt expires in 10 minutes."
+    return subject, text_content, html_content
+
+
 def send_pending_signup_email(pending):
-    send_mail(
-        subject="Vibely - Your verification code",
-        message=f"Your Vibely verification code is: {pending.code}\nIt expires in 10 minutes.",
-        from_email=None,
-        recipient_list=[pending.email],
-        fail_silently=False,
+    subject, text_content, html_content = _build_code_email(
+        "Vibely - Verify your email",
+        pending.code,
+        "Enter this code to verify your email and finish creating your account.",
     )
+    msg = EmailMultiAlternatives(subject, text_content, None, [pending.email])
+    msg.attach_alternative(html_content, "text/html")
+    msg.send(fail_silently=False)
+
+
+def send_password_reset_email(otp):
+    subject, text_content, html_content = _build_code_email(
+        "Vibely - Reset your password",
+        otp.code,
+        "Enter this code to reset your password.",
+    )
+    msg = EmailMultiAlternatives(subject, text_content, None, [otp.user.email])
+    msg.attach_alternative(html_content, "text/html")
+    msg.send(fail_silently=False)
 def create_notification(
     recipient,
     actor,
@@ -236,10 +265,19 @@ class ResendCodeView(APIView):
 class LoginView(APIView):
 
     def post(self, request):
-        username = request.data.get("username")
+        identifier = request.data.get("username")
         password = request.data.get("password")
 
-        user = authenticate(username=username, password=password)
+        username = identifier
+
+        if identifier and "@" in identifier:
+            try:
+                user_obj = User.objects.get(email__iexact=identifier)
+                username = user_obj.username
+            except User.DoesNotExist:
+                username = None
+
+        user = authenticate(username=username, password=password) if username else None
 
         if user is not None:
             if not user.profile.is_email_verified:
@@ -1168,15 +1206,6 @@ class ReelsListView(generics.ListAPIView):
         # Random order instead of chronological, so the reels feed doesn't
         # feel like a repetitive list
         return Post.objects.filter(media__media_type="video").distinct().order_by("?")
-
-def send_password_reset_email(otp):
-    send_mail(
-        subject="Vibely - Password reset code",
-        message=f"Your Vibely password reset code is: {otp.code}\nIt expires in 10 minutes.",
-        from_email=None,
-        recipient_list=[otp.user.email],
-        fail_silently=False,
-    )
 
 class ForgotPasswordView(APIView):
 

@@ -82,7 +82,7 @@ function Login() {
 
         <form className="signup-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Username</label>
+            <label>Username or Email</label>
             <input
               type="text"
               name="username"
